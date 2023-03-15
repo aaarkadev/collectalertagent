@@ -17,6 +17,10 @@ func (m *MemStorage) Init() bool {
 	return true
 }
 
+func (m *MemStorage) GetAll() []Metric {
+	return m.metrics
+}
+
 func (m *MemStorage) Get(k string) (Metric, error) {
 	for _, v := range m.metrics {
 		if v.Name == k {

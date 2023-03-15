@@ -10,62 +10,14 @@ import (
 	"runtime"
 	"strconv"
 	"time"
-)
 
-type DataType string
-type DataSource uint8
+	. "github.com/aaarkadev/collectalertagent/internal/repositories"
+	. "github.com/aaarkadev/collectalertagent/internal/storages"
+	. "github.com/aaarkadev/collectalertagent/internal/types"
+)
 
 const pollInterval = 2 * time.Second
 const reportInterval = 10 * time.Second
-
-const (
-	gaugeType   DataType = "gauge"
-	counterType DataType = "counter"
-)
-
-func (s DataType) IsValid() bool {
-	switch s {
-	case gaugeType, counterType:
-		return true
-	default:
-		return false
-	}
-}
-
-func (s DataType) String() string {
-	return string(s)
-}
-
-const (
-	osSource DataSource = iota
-	incrementSource
-	randSource
-)
-
-func (s DataSource) IsValid() bool {
-	switch s {
-	case osSource, incrementSource, randSource:
-		return true
-	default:
-		return false
-	}
-}
-
-type Metric struct {
-	Name   string
-	Type   DataType
-	Source DataSource
-	Val    interface{}
-}
-
-func (m *Metric) Init() {
-	switch m.Type {
-	case counterType:
-		m.Val = int64(0)
-	default:
-		m.Val = float64(0.0)
-	}
-}
 
 func getFloat(unk interface{}) (float64, error) {
 	switch i := unk.(type) {
@@ -104,15 +56,15 @@ func getFloat(unk interface{}) (float64, error) {
 	}
 }
 
-func (m *Metric) Update(statStructReflect reflect.Value) {
+func UpdateOne(m Metric, statStructReflect reflect.Value) Metric {
 	switch m.Source {
-	case incrementSource:
+	case IncrementSource:
 		v, ok := m.Val.(int64)
 		if ok {
 			v = v + 1
 			m.Val = int64(v)
 		}
-	case randSource:
+	case RandSource:
 		{
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			m.Val = float64(r.Float64())
@@ -130,9 +82,10 @@ func (m *Metric) Update(statStructReflect reflect.Value) {
 		}
 	}
 
+	return m
 }
 
-func UpdatelMetrics() bool {
+func UpdatelMetrics(rep Repo) bool {
 	var osStats = runtime.MemStats{}
 	runtime.ReadMemStats(&osStats)
 	rv := reflect.ValueOf(&osStats)
@@ -142,89 +95,72 @@ func UpdatelMetrics() bool {
 	if rv.Kind() != reflect.Struct {
 		return false
 	}
-	metricsArray := GetMetrics()
-	for i, _ := range *metricsArray {
-		(*metricsArray)[i].Update(rv)
+
+	for _, mElem := range rep.GetAll() {
+		mElem = UpdateOne(mElem, rv)
+		ok := rep.Set(mElem)
+		if !ok {
+			//fmt.Println("error upd [$v]", mElem.Name)
+		}
 	}
 	return true
 }
 
-func NewMetric(name string, typ DataType, source DataSource) (*Metric, error) {
-	if !typ.IsValid() {
-		return &Metric{}, fmt.Errorf("DataType[%v]: invalid", typ)
-	}
-	if !source.IsValid() {
-		return &Metric{}, fmt.Errorf("DataSource[%v]: invalid", source)
-	}
-
-	m := &Metric{
-		Name:   name,
-		Type:   typ,
-		Source: source,
-		//Val:    val,
-	}
-	m.Init()
-	//m.Update()
-	return m, nil
-}
-
-func InitAllMetrics() {
+func InitAllMetrics(rep Repo) {
+	rep.Init()
 	var initVars = []struct {
 		Name   string
 		Type   DataType
 		Source DataSource
 	}{
 
-		{Name: "Alloc", Type: gaugeType, Source: osSource},
-		{Name: "BuckHashSys", Type: gaugeType, Source: osSource},
-		{Name: "Frees", Type: gaugeType, Source: osSource},
-		{Name: "GCCPUFraction", Type: gaugeType, Source: osSource},
-		{Name: "GCSys", Type: gaugeType, Source: osSource},
-		{Name: "HeapAlloc", Type: gaugeType, Source: osSource},
-		{Name: "HeapIdle", Type: gaugeType, Source: osSource},
-		{Name: "HeapInuse", Type: gaugeType, Source: osSource},
-		{Name: "HeapObjects", Type: gaugeType, Source: osSource},
-		{Name: "HeapReleased", Type: gaugeType, Source: osSource},
-		{Name: "HeapSys", Type: gaugeType, Source: osSource},
-		{Name: "LastGC", Type: gaugeType, Source: osSource},
-		{Name: "LastGC", Type: gaugeType, Source: osSource},
-		{Name: "MCacheInuse", Type: gaugeType, Source: osSource},
-		{Name: "MCacheSys", Type: gaugeType, Source: osSource},
-		{Name: "MSpanInuse", Type: gaugeType, Source: osSource},
-		{Name: "MSpanSys", Type: gaugeType, Source: osSource},
-		{Name: "Mallocs", Type: gaugeType, Source: osSource},
-		{Name: "NextGC", Type: gaugeType, Source: osSource},
-		{Name: "NumForcedGC", Type: gaugeType, Source: osSource},
-		{Name: "NumGC", Type: gaugeType, Source: osSource},
-		{Name: "OtherSys", Type: gaugeType, Source: osSource},
-		{Name: "PauseTotalNs", Type: gaugeType, Source: osSource},
-		{Name: "StackInuse", Type: gaugeType, Source: osSource},
-		{Name: "StackSys", Type: gaugeType, Source: osSource},
-		{Name: "Sys", Type: gaugeType, Source: osSource},
-		{Name: "TotalAlloc", Type: gaugeType, Source: osSource},
-		{Name: "PollCount", Type: counterType, Source: incrementSource},
-		{Name: "RandomValue", Type: gaugeType, Source: randSource},
+		{Name: "Alloc", Type: GaugeType, Source: OsSource},
+		{Name: "BuckHashSys", Type: GaugeType, Source: OsSource},
+		{Name: "Frees", Type: GaugeType, Source: OsSource},
+		{Name: "GCCPUFraction", Type: GaugeType, Source: OsSource},
+		{Name: "GCSys", Type: GaugeType, Source: OsSource},
+		{Name: "HeapAlloc", Type: GaugeType, Source: OsSource},
+		{Name: "HeapIdle", Type: GaugeType, Source: OsSource},
+		{Name: "HeapInuse", Type: GaugeType, Source: OsSource},
+		{Name: "HeapObjects", Type: GaugeType, Source: OsSource},
+		{Name: "HeapReleased", Type: GaugeType, Source: OsSource},
+		{Name: "HeapSys", Type: GaugeType, Source: OsSource},
+		{Name: "LastGC", Type: GaugeType, Source: OsSource},
+		{Name: "LastGC", Type: GaugeType, Source: OsSource},
+		{Name: "MCacheInuse", Type: GaugeType, Source: OsSource},
+		{Name: "MCacheSys", Type: GaugeType, Source: OsSource},
+		{Name: "MSpanInuse", Type: GaugeType, Source: OsSource},
+		{Name: "MSpanSys", Type: GaugeType, Source: OsSource},
+		{Name: "Mallocs", Type: GaugeType, Source: OsSource},
+		{Name: "NextGC", Type: GaugeType, Source: OsSource},
+		{Name: "NumForcedGC", Type: GaugeType, Source: OsSource},
+		{Name: "NumGC", Type: GaugeType, Source: OsSource},
+		{Name: "OtherSys", Type: GaugeType, Source: OsSource},
+		{Name: "PauseTotalNs", Type: GaugeType, Source: OsSource},
+		{Name: "StackInuse", Type: GaugeType, Source: OsSource},
+		{Name: "StackSys", Type: GaugeType, Source: OsSource},
+		{Name: "Sys", Type: GaugeType, Source: OsSource},
+		{Name: "TotalAlloc", Type: GaugeType, Source: OsSource},
+		{Name: "PollCount", Type: CounterType, Source: IncrementSource},
+		{Name: "RandomValue", Type: GaugeType, Source: RandSource},
 	}
-	metricsArray := GetMetrics()
+
 	for _, v := range initVars {
-		NewMetricElement, err := NewMetric(v.Name, v.Type, v.Source)
-		if err != nil {
-			fmt.Println(err)
+		ok := rep.Set(Metric{Name: v.Name, Type: v.Type, Source: v.Source})
+		if !ok {
+			//fmt.Println("error init [$v]", v.Name)
 		}
-		*metricsArray = append(*metricsArray, *NewMetricElement)
 	}
+	//fmt.Println("init ", collectedMetric)
 }
 
-var collectedMetric = []Metric{}
+var collectedMetric MemStorage
 
-func GetMetrics() *[]Metric {
-	return &collectedMetric
-}
-func sendMetrics() {
+func sendMetrics(rep Repo) {
 	client := &http.Client{}
 	client.Timeout = 10 * time.Second
-	metricsArray := GetMetrics()
-	for _, v := range *metricsArray {
+
+	for _, v := range rep.GetAll() {
 		url := fmt.Sprintf("http://127.0.0.1:8080/update/%v/%v/%v", v.Type, v.Name, v.Val)
 		//fmt.Println(url)
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -250,8 +186,8 @@ func sendMetrics() {
 	}
 }
 func main() {
-	InitAllMetrics()
-	//fmt.Println(*GetMetrics())
+	collectedMetric = MemStorage{}
+	InitAllMetrics(&collectedMetric)
 
 	pollTicker := time.NewTicker(pollInterval)
 	defer pollTicker.Stop()
@@ -262,12 +198,14 @@ func main() {
 		select {
 		case _ = <-pollTicker.C:
 			{
-				UpdatelMetrics()
+				go func() {
+					UpdatelMetrics(&collectedMetric)
+				}()
 			}
 		case _ = <-reportTicker.C:
 			{
 				go func() {
-					sendMetrics()
+					sendMetrics(&collectedMetric)
 				}()
 			}
 		}
