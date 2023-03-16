@@ -4,10 +4,26 @@ import "fmt"
 
 type DataType string
 type DataSource uint8
+type Metric struct {
+	Name   string
+	Type   DataType
+	Source DataSource
+	Val    interface{}
+}
+
+type ServerHandlerData struct {
+	Data interface{}
+}
 
 const (
 	GaugeType   DataType = "gauge"
 	CounterType DataType = "counter"
+)
+
+const (
+	OsSource DataSource = iota
+	IncrementSource
+	RandSource
 )
 
 func (s DataType) IsValid() bool {
@@ -23,12 +39,6 @@ func (s DataType) String() string {
 	return string(s)
 }
 
-const (
-	OsSource DataSource = iota
-	IncrementSource
-	RandSource
-)
-
 func (s DataSource) IsValid() bool {
 	switch s {
 	case OsSource, IncrementSource, RandSource:
@@ -38,13 +48,6 @@ func (s DataSource) IsValid() bool {
 	}
 }
 
-type Metric struct {
-	Name   string
-	Type   DataType
-	Source DataSource
-	Val    interface{}
-}
-
 func (m *Metric) Init() {
 	switch m.Type {
 	case CounterType:
@@ -52,6 +55,29 @@ func (m *Metric) Init() {
 	default:
 		m.Val = float64(0.0)
 	}
+}
+
+func (m *Metric) Get() string {
+	s := ""
+	switch m.Type {
+	case CounterType:
+		{
+
+			v, ok := m.Val.(int64)
+			if ok {
+				s = fmt.Sprintf("%d", v)
+			}
+		}
+	default:
+		{
+			v, ok := m.Val.(float64)
+			if ok {
+				s = fmt.Sprintf("%f", v)
+			}
+		}
+	}
+
+	return s
 }
 
 func (m *Metric) Set(val interface{}) bool {
@@ -94,6 +120,5 @@ func NewMetric(name string, typ DataType, source DataSource) (*Metric, error) {
 		//Val:    val,
 	}
 	m.Init()
-	//m.Update()
 	return m, nil
 }
