@@ -72,7 +72,7 @@ func (m *Metric) Get() string {
 		{
 			v, ok := m.Val.(float64)
 			if ok {
-				s = fmt.Sprintf("%f", v)
+				s = fmt.Sprintf("%.3f", v)
 			}
 		}
 	}
