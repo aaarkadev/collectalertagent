@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"reflect"
@@ -11,9 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	. "github.com/aaarkadev/collectalertagent/internal/repositories"
-	. "github.com/aaarkadev/collectalertagent/internal/storages"
-	. "github.com/aaarkadev/collectalertagent/internal/types"
+	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/storages"
+	"github.com/aaarkadev/collectalertagent/internal/types"
 )
 
 const pollInterval = 2 * time.Second
@@ -56,15 +57,15 @@ func getFloat(unk interface{}) (float64, error) {
 	}
 }
 
-func UpdateOne(m Metric, statStructReflect reflect.Value) Metric {
+func UpdateOne(m types.Metric, statStructReflect reflect.Value) types.Metric {
 	switch m.Source {
-	case IncrementSource:
+	case types.IncrementSource:
 		v, ok := m.Val.(int64)
 		if ok {
 			v = v + 1
 			m.Val = int64(v)
 		}
-	case RandSource:
+	case types.RandSource:
 		{
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			m.Val = float64(r.Float64())
@@ -85,7 +86,7 @@ func UpdateOne(m Metric, statStructReflect reflect.Value) Metric {
 	return m
 }
 
-func UpdatelMetrics(rep Repo) bool {
+func UpdatelMetrics(rep repositories.Repo) bool {
 	var osStats = runtime.MemStats{}
 	runtime.ReadMemStats(&osStats)
 	rv := reflect.ValueOf(&osStats)
@@ -100,63 +101,62 @@ func UpdatelMetrics(rep Repo) bool {
 		mElem = UpdateOne(mElem, rv)
 		ok := rep.Set(mElem)
 		if !ok {
-			//fmt.Println("error upd [$v]", mElem.Name)
+			log.Fatal("error repo set element")
 		}
 	}
 	return true
 }
 
-func InitAllMetrics(rep Repo) {
+func InitAllMetrics(rep repositories.Repo) {
 	rep.Init()
 	var initVars = []struct {
 		Name   string
-		Type   DataType
-		Source DataSource
+		Type   types.DataType
+		Source types.DataSource
 	}{
-
-		{Name: "Alloc", Type: GaugeType, Source: OsSource},
-		{Name: "BuckHashSys", Type: GaugeType, Source: OsSource},
-		{Name: "Frees", Type: GaugeType, Source: OsSource},
-		{Name: "GCCPUFraction", Type: GaugeType, Source: OsSource},
-		{Name: "GCSys", Type: GaugeType, Source: OsSource},
-		{Name: "HeapAlloc", Type: GaugeType, Source: OsSource},
-		{Name: "HeapIdle", Type: GaugeType, Source: OsSource},
-		{Name: "HeapInuse", Type: GaugeType, Source: OsSource},
-		{Name: "HeapObjects", Type: GaugeType, Source: OsSource},
-		{Name: "HeapReleased", Type: GaugeType, Source: OsSource},
-		{Name: "HeapSys", Type: GaugeType, Source: OsSource},
-		{Name: "LastGC", Type: GaugeType, Source: OsSource},
-		{Name: "LastGC", Type: GaugeType, Source: OsSource},
-		{Name: "MCacheInuse", Type: GaugeType, Source: OsSource},
-		{Name: "MCacheSys", Type: GaugeType, Source: OsSource},
-		{Name: "MSpanInuse", Type: GaugeType, Source: OsSource},
-		{Name: "MSpanSys", Type: GaugeType, Source: OsSource},
-		{Name: "Mallocs", Type: GaugeType, Source: OsSource},
-		{Name: "NextGC", Type: GaugeType, Source: OsSource},
-		{Name: "NumForcedGC", Type: GaugeType, Source: OsSource},
-		{Name: "NumGC", Type: GaugeType, Source: OsSource},
-		{Name: "OtherSys", Type: GaugeType, Source: OsSource},
-		{Name: "PauseTotalNs", Type: GaugeType, Source: OsSource},
-		{Name: "StackInuse", Type: GaugeType, Source: OsSource},
-		{Name: "StackSys", Type: GaugeType, Source: OsSource},
-		{Name: "Sys", Type: GaugeType, Source: OsSource},
-		{Name: "TotalAlloc", Type: GaugeType, Source: OsSource},
-		{Name: "PollCount", Type: CounterType, Source: IncrementSource},
-		{Name: "RandomValue", Type: GaugeType, Source: RandSource},
+		{Name: "Alloc", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "BuckHashSys", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "Frees", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "GCCPUFraction", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "GCSys", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "HeapAlloc", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "HeapIdle", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "HeapInuse", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "HeapObjects", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "HeapReleased", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "HeapSys", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "LastGC", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "LastGC", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "MCacheInuse", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "MCacheSys", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "MSpanInuse", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "MSpanSys", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "Mallocs", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "NextGC", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "NumForcedGC", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "NumGC", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "OtherSys", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "PauseTotalNs", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "StackInuse", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "StackSys", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "Sys", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "TotalAlloc", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "PollCount", Type: types.CounterType, Source: types.IncrementSource},
+		{Name: "RandomValue", Type: types.GaugeType, Source: types.RandSource},
 	}
 
 	for _, v := range initVars {
-		ok := rep.Set(Metric{Name: v.Name, Type: v.Type, Source: v.Source})
+		ok := rep.Set(types.Metric{Name: v.Name, Type: v.Type, Source: v.Source})
 		if !ok {
-			//fmt.Println("error init [$v]", v.Name)
+			log.Fatal("error repo set element")
 		}
 	}
 	//fmt.Println("init ", collectedMetric)
 }
 
-var collectedMetric MemStorage
+var collectedMetric storages.MemStorage
 
-func sendMetrics(rep Repo) {
+func sendMetrics(rep repositories.Repo) {
 	client := &http.Client{}
 	client.Timeout = 10 * time.Second
 
@@ -186,7 +186,7 @@ func sendMetrics(rep Repo) {
 	}
 }
 func main() {
-	collectedMetric = MemStorage{}
+	collectedMetric = storages.MemStorage{}
 	InitAllMetrics(&collectedMetric)
 
 	pollTicker := time.NewTicker(pollInterval)
@@ -196,13 +196,13 @@ func main() {
 
 	for {
 		select {
-		case _ = <-pollTicker.C:
+		case <-pollTicker.C:
 			{
 				go func() {
 					UpdatelMetrics(&collectedMetric)
 				}()
 			}
-		case _ = <-reportTicker.C:
+		case <-reportTicker.C:
 			{
 				go func() {
 					sendMetrics(&collectedMetric)

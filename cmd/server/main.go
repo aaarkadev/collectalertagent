@@ -7,18 +7,18 @@ import (
 	"net/http"
 
 	"github.com/aaarkadev/collectalertagent/internal/handlers"
-	. "github.com/aaarkadev/collectalertagent/internal/repositories"
-	. "github.com/aaarkadev/collectalertagent/internal/storages"
+	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/go-chi/chi/v5"
 )
 
-func initRepo(r Repo) {
+func initRepo(r repositories.Repo) {
 	r.Init()
 }
 
 func main() {
 
-	r := MemStorage{}
+	r := storages.MemStorage{}
 	initRepo(&r)
 
 	router := chi.NewRouter()

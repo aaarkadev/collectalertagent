@@ -10,9 +10,9 @@ import (
 	"context"
 
 	"github.com/aaarkadev/collectalertagent/internal/handlers"
-	. "github.com/aaarkadev/collectalertagent/internal/repositories"
-	. "github.com/aaarkadev/collectalertagent/internal/storages"
-	. "github.com/aaarkadev/collectalertagent/internal/types"
+	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/storages"
+	"github.com/aaarkadev/collectalertagent/internal/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +20,7 @@ import (
 )
 
 func TestUserPostHandler(t *testing.T) {
-	mem := MemStorage{}
+	mem := storages.MemStorage{}
 	mem.Init()
 	getHandler := handlers.UpdateMetricsHandler{}
 	getHandler.Data = &mem
@@ -55,7 +55,7 @@ func TestUserPostHandler(t *testing.T) {
 }
 
 func TestUserGetHandler(t *testing.T) {
-	mem := MemStorage{}
+	mem := storages.MemStorage{}
 	mem.Init()
 	getHandler := handlers.GetMetricsHandler{}
 	getHandler.Data = &mem
@@ -81,7 +81,7 @@ func TestUserGetHandler(t *testing.T) {
 	})
 
 	t.Run("testGetOne", func(t *testing.T) {
-		mem.Set(Metric{Name: "PollCount", Type: CounterType, Source: IncrementSource, Val: int64(1234)})
+		mem.Set(types.Metric{Name: "PollCount", Type: types.CounterType, Source: types.IncrementSource, Val: int64(1234)})
 		request := httptest.NewRequest(http.MethodGet, "/value/counter/PollCount", nil)
 		w := httptest.NewRecorder()
 
@@ -111,18 +111,18 @@ func TestUserGetHandler(t *testing.T) {
 
 type MemStorageTestSuite struct {
 	suite.Suite
-	r Repo
+	r repositories.Repo
 }
 
 func (suite *MemStorageTestSuite) SetupSuite() {
-	m := MemStorage{}
+	m := storages.MemStorage{}
 	m.Init()
 	suite.r = &m
 }
 
 func (suite *MemStorageTestSuite) TestSet() {
 
-	ok := suite.r.Set(Metric{Name: "abc", Type: GaugeType, Source: OsSource, Val: float64(3.1416)})
+	ok := suite.r.Set(types.Metric{Name: "abc", Type: types.GaugeType, Source: types.OsSource, Val: float64(3.1416)})
 
 	suite.Equal(true, ok)
 

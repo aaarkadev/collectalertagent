@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"strings"
 
-	. "github.com/aaarkadev/collectalertagent/internal/repositories"
-	. "github.com/aaarkadev/collectalertagent/internal/types"
+	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/types"
 	"github.com/go-chi/chi/v5"
 )
 
 type GetMetricsHandler struct {
-	ServerHandlerData
+	types.ServerHandlerData
 }
 
 func (hStruct GetMetricsHandler) HandlerFuncAll(w http.ResponseWriter, r *http.Request) {
@@ -28,9 +28,9 @@ func (hStruct GetMetricsHandler) HandlerFuncAll(w http.ResponseWriter, r *http.R
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	repoData, ok := hStruct.Data.(Repo)
+	repoData, ok := hStruct.Data.(repositories.Repo)
 	if !ok {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "handler data type assertion to Repo fail", http.StatusBadRequest)
 		return
 	}
 
@@ -70,9 +70,9 @@ func (hStruct GetMetricsHandler) HandlerFuncOne(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	repoData, ok := hStruct.Data.(Repo)
+	repoData, ok := hStruct.Data.(repositories.Repo)
 	if !ok {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "handler data type assertion to Repo fail", http.StatusBadRequest)
 		return
 	}
 

@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"strconv"
 
-	. "github.com/aaarkadev/collectalertagent/internal/repositories"
-	. "github.com/aaarkadev/collectalertagent/internal/types"
+	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/types"
 	"github.com/go-chi/chi/v5"
 )
 
 type UpdateMetricsHandler struct {
-	ServerHandlerData
+	types.ServerHandlerData
 }
 
 func (hStruct UpdateMetricsHandler) HandlerFunc(w http.ResponseWriter, r *http.Request) {
@@ -54,20 +54,20 @@ func (hStruct UpdateMetricsHandler) HandlerFunc(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	repoData, ok := hStruct.Data.(Repo)
+	repoData, ok := hStruct.Data.(repositories.Repo)
 	if !ok {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "handler data type assertion to Repo fail", http.StatusBadRequest)
 		return
 	}
 
 	if typeParam == "gauge" {
-		repoData.Set(Metric{Name: nameParam, Type: GaugeType, Source: OsSource, Val: float64(floatV)})
+		repoData.Set(types.Metric{Name: nameParam, Type: types.GaugeType, Source: types.OsSource, Val: float64(floatV)})
 	} else {
 		oldVal, oldValErr := repoData.Get(nameParam)
 		if oldValErr != nil {
-			repoData.Set(Metric{Name: nameParam, Type: CounterType, Source: IncrementSource, Val: int64(intV)})
+			repoData.Set(types.Metric{Name: nameParam, Type: types.CounterType, Source: types.IncrementSource, Val: int64(intV)})
 		} else {
-			repoData.Set(Metric{Name: nameParam, Type: CounterType, Source: IncrementSource, Val: (oldVal.Val.(int64) + int64(intV))})
+			repoData.Set(types.Metric{Name: nameParam, Type: types.CounterType, Source: types.IncrementSource, Val: (oldVal.Val.(int64) + int64(intV))})
 		}
 	}
 
