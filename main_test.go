@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -42,7 +42,7 @@ func TestUserPostHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t, "text/plain", result.Header.Get("Content-Type"))
 
-		bodyStr, err := ioutil.ReadAll(result.Body)
+		bodyStr, err := io.ReadAll(result.Body)
 		require.NoError(t, err)
 		err = result.Body.Close()
 		require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestUserGetHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t, "text/html", result.Header.Get("Content-Type"))
 
-		bodyStr, err := ioutil.ReadAll(result.Body)
+		bodyStr, err := io.ReadAll(result.Body)
 		require.NoError(t, err)
 		err = result.Body.Close()
 		require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestUserGetHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, result.StatusCode)
 		assert.Equal(t, "text/plain", result.Header.Get("Content-Type"))
 
-		bodyStr, err := ioutil.ReadAll(result.Body)
+		bodyStr, err := io.ReadAll(result.Body)
 		require.NoError(t, err)
 		err = result.Body.Close()
 		require.NoError(t, err)
