@@ -4,11 +4,13 @@ import "fmt"
 
 type DataType string
 type DataSource uint8
-type Metric struct {
-	Name   string
-	Type   DataType
-	Source DataSource
-	Val    interface{}
+
+type Metrics struct {
+	ID     string     `json:"id"`
+	MType  string     `json:"type"`
+	Delta  *int64     `json:"delta,omitempty"`
+	Value  *float64   `json:"value,omitempty"`
+	Source DataSource `json:"-"`
 }
 
 type ServerHandlerData struct {
@@ -48,46 +50,56 @@ func (s DataSource) IsValid() bool {
 	}
 }
 
-func (m *Metric) Init() {
-	switch m.Type {
+func (m *Metrics) Init() {
+	switch DataType(m.MType) {
 	case CounterType:
-		m.Val = int64(0)
+		m.Delta = new(int64)
 	default:
-		m.Val = float64(0.0)
+		m.Value = new(float64)
 	}
 }
 
-func (m *Metric) Get() string {
+func (m *Metrics) Get() string {
 	s := ""
-	switch m.Type {
+	switch DataType(m.MType) {
 	case CounterType:
 		{
-
-			v, ok := m.Val.(int64)
-			if ok {
-				s = fmt.Sprintf("%d", v)
-			}
+			s = fmt.Sprintf("%d", *m.Delta)
 		}
 	default:
 		{
-			v, ok := m.Val.(float64)
-			if ok {
-				s = fmt.Sprintf("%.3f", v)
-			}
+			s = fmt.Sprintf("%.3f", *m.Value)
 		}
 	}
 
 	return s
 }
 
-func (m *Metric) Set(val interface{}) bool {
+func (m *Metrics) SetMetric(newM Metrics) bool {
+	if m.MType != newM.MType {
+		return false
+	}
+	switch DataType(m.MType) {
+	case CounterType:
+		{
+			*m.Delta = *m.Delta + *newM.Delta
+		}
+	default:
+		{
+			m.Value = newM.Value
+		}
+	}
+	return true
+}
 
-	switch m.Type {
+func (m *Metrics) Set(val interface{}) bool {
+
+	switch DataType(m.MType) {
 	case CounterType:
 		{
 			v, ok := val.(int64)
 			if ok {
-				m.Val = int64(v)
+				*m.Delta = int64(v)
 			} else {
 				return false
 			}
@@ -96,7 +108,7 @@ func (m *Metric) Set(val interface{}) bool {
 		{
 			v, ok := val.(float64)
 			if ok {
-				m.Val = float64(v)
+				*m.Value = float64(v)
 			} else {
 				return false
 			}
@@ -105,19 +117,18 @@ func (m *Metric) Set(val interface{}) bool {
 	return true
 }
 
-func NewMetric(name string, typ DataType, source DataSource) (*Metric, error) {
+func NewMetric(name string, typ DataType, source DataSource) (*Metrics, error) {
 	if !typ.IsValid() {
-		return &Metric{}, fmt.Errorf("DataType[%v]: invalid", typ)
+		return &Metrics{}, fmt.Errorf("DataType[%v]: invalid", typ)
 	}
 	if !source.IsValid() {
-		return &Metric{}, fmt.Errorf("DataSource[%v]: invalid", source)
+		return &Metrics{}, fmt.Errorf("DataSource[%v]: invalid", source)
 	}
 
-	m := &Metric{
-		Name:   name,
-		Type:   typ,
+	m := &Metrics{
+		ID:     name,
+		MType:  string(typ),
 		Source: source,
-		//Val:    val,
 	}
 	m.Init()
 	return m, nil

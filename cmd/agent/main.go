@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+
+	"bytes"
+	"encoding/json"
 	"math/rand"
 	"net/http"
 	"reflect"
@@ -57,27 +60,25 @@ func getFloat(unk interface{}) (float64, error) {
 	}
 }
 
-func UpdateOne(m types.Metric, statStructReflect reflect.Value) types.Metric {
+func UpdateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
 	switch m.Source {
 	case types.IncrementSource:
-		v, ok := m.Val.(int64)
-		if ok {
-			v = v + 1
-			m.Val = int64(v)
+		{
+			m.Set((*m.Delta + int64(1)))
 		}
 	case types.RandSource:
 		{
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			m.Val = float64(r.Float64())
+			m.Set(float64(r.Float64()))
 		}
 	default:
 		{
-			structFieldVal := statStructReflect.FieldByName(m.Name)
+			structFieldVal := statStructReflect.FieldByName(m.ID)
 			if structFieldVal.IsValid() {
 				structFieldInterface := structFieldVal.Interface()
 				v, err := getFloat(structFieldInterface)
 				if err == nil {
-					m.Val = float64(v)
+					m.Set(float64(v))
 				}
 			}
 		}
@@ -126,7 +127,7 @@ func InitAllMetrics(rep repositories.Repo) {
 		{Name: "HeapReleased", Type: types.GaugeType, Source: types.OsSource},
 		{Name: "HeapSys", Type: types.GaugeType, Source: types.OsSource},
 		{Name: "LastGC", Type: types.GaugeType, Source: types.OsSource},
-		{Name: "LastGC", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "Lookups", Type: types.GaugeType, Source: types.OsSource},
 		{Name: "MCacheInuse", Type: types.GaugeType, Source: types.OsSource},
 		{Name: "MCacheSys", Type: types.GaugeType, Source: types.OsSource},
 		{Name: "MSpanInuse", Type: types.GaugeType, Source: types.OsSource},
@@ -146,23 +147,58 @@ func InitAllMetrics(rep repositories.Repo) {
 	}
 
 	for _, v := range initVars {
-		ok := rep.Set(types.Metric{Name: v.Name, Type: v.Type, Source: v.Source})
+		newM, err := types.NewMetric(v.Name, v.Type, v.Source)
+		if err != nil {
+			log.Fatal("NewMetric error")
+		}
+		ok := rep.Set(*newM)
 		if !ok {
 			log.Fatal("error repo set element")
 		}
 	}
-	//fmt.Println("init ", collectedMetric)
+
 }
 
 var collectedMetric storages.MemStorage
 
-func sendMetrics(rep repositories.Repo) {
+func sendMetricsJson(rep repositories.Repo) {
+	client := &http.Client{}
+	client.Timeout = 10 * time.Second
+
+	txtM, err := json.Marshal(rep.GetAll())
+
+	if err != nil {
+		panic(err)
+	}
+	url := fmt.Sprintf("http://127.0.0.1:8080/update/")
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	req, rqErr := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(txtM))
+	if rqErr != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "Content-Type: application/json")
+
+	response, doErr := client.Do(req)
+	if doErr != nil {
+		return
+	}
+
+	_, ioErr := io.Copy(io.Discard, response.Body)
+	if ioErr != nil {
+		return
+	}
+	response.Body.Close()
+}
+
+func sendMetricsRaw(rep repositories.Repo) {
 	client := &http.Client{}
 	client.Timeout = 10 * time.Second
 
 	for _, v := range rep.GetAll() {
-		url := fmt.Sprintf("http://127.0.0.1:8080/update/%v/%v/%v", v.Type, v.Name, v.Val)
-		//fmt.Println(url)
+		url := fmt.Sprintf("http://127.0.0.1:8080/update/%v/%v/%v", v.MType, v.ID, v.Get())
+
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
@@ -185,6 +221,7 @@ func sendMetrics(rep repositories.Repo) {
 
 	}
 }
+
 func main() {
 	collectedMetric = storages.MemStorage{}
 	InitAllMetrics(&collectedMetric)
@@ -205,7 +242,7 @@ func main() {
 		case <-reportTicker.C:
 			{
 				go func() {
-					sendMetrics(&collectedMetric)
+					sendMetricsJson(&collectedMetric)
 				}()
 			}
 		}
