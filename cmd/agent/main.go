@@ -1,15 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-
-	"bytes"
-	"encoding/json"
 	"math/rand"
 	"net/http"
+	"os"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -161,7 +161,7 @@ func InitAllMetrics(rep repositories.Repo) {
 
 var collectedMetric storages.MemStorage
 
-func sendMetricsJson(rep repositories.Repo) {
+func sendMetricsJson(rep repositories.Repo, config agentConfig) {
 	client := &http.Client{}
 	client.Timeout = 10 * time.Second
 
@@ -170,7 +170,7 @@ func sendMetricsJson(rep repositories.Repo) {
 	if err != nil {
 		panic(err)
 	}
-	url := fmt.Sprintf("http://127.0.0.1:8080/update/")
+	url := fmt.Sprintf("http://%v/update/", config.sendAddress)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
@@ -192,12 +192,12 @@ func sendMetricsJson(rep repositories.Repo) {
 	response.Body.Close()
 }
 
-func sendMetricsRaw(rep repositories.Repo) {
+func sendMetricsRaw(rep repositories.Repo, config agentConfig) {
 	client := &http.Client{}
 	client.Timeout = 10 * time.Second
 
 	for _, v := range rep.GetAll() {
-		url := fmt.Sprintf("http://127.0.0.1:8080/update/%v/%v/%v", v.MType, v.ID, v.Get())
+		url := fmt.Sprintf("http://%v/update/%v/%v/%v", config.sendAddress, v.MType, v.ID, v.Get())
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
@@ -222,13 +222,55 @@ func sendMetricsRaw(rep repositories.Repo) {
 	}
 }
 
+type agentConfig struct {
+	sendAddress    string
+	reportInterval time.Duration
+	pollInterval   time.Duration
+}
+
+func initConfig() agentConfig {
+
+	config := agentConfig{}
+
+	config.sendAddress = os.Getenv("ADDRESS")
+	if len(config.sendAddress) <= 0 {
+		config.sendAddress = "127.0.0.1:8080"
+	}
+
+	envVal, envErr := os.LookupEnv("REPORT_INTERVAL")
+	if !envErr {
+		config.reportInterval = reportInterval
+	} else {
+		envInt, err := strconv.Atoi(envVal)
+		if err == nil {
+			config.reportInterval = time.Duration(envInt) * time.Second
+		} else {
+			config.reportInterval = reportInterval
+		}
+	}
+
+	envVal, envErr = os.LookupEnv("POLL_INTERVAL")
+	if !envErr {
+		config.pollInterval = pollInterval
+	} else {
+		envInt, err := strconv.Atoi(envVal)
+		if err == nil {
+			config.pollInterval = time.Duration(envInt) * time.Second
+		} else {
+			config.pollInterval = pollInterval
+		}
+	}
+	return config
+}
+
 func main() {
 	collectedMetric = storages.MemStorage{}
 	InitAllMetrics(&collectedMetric)
+	config := initConfig()
 
-	pollTicker := time.NewTicker(pollInterval)
+	pollTicker := time.NewTicker(config.pollInterval)
 	defer pollTicker.Stop()
-	reportTicker := time.NewTicker(reportInterval)
+	reportTicker := time.NewTicker(config.reportInterval)
 	defer reportTicker.Stop()
 
 	for {
@@ -242,7 +284,7 @@ func main() {
 		case <-reportTicker.C:
 			{
 				go func() {
-					sendMetricsJson(&collectedMetric)
+					sendMetricsJson(&collectedMetric, config)
 				}()
 			}
 		}

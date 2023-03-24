@@ -71,7 +71,7 @@ func (hStruct UpdateMetricsHandler) HandlerJson(w http.ResponseWriter, r *http.R
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	fmt.Println("POST answer " + string(txtM))
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(txtM))
