@@ -40,36 +40,37 @@ func (hStruct UpdateMetricsHandler) HandlerJson(w http.ResponseWriter, r *http.R
 		isUpdateOneMetric = true
 	}
 
-	oldMetrics := repoData.GetAll()
-
 	txtM := []byte{}
+	storeTxt := []byte{}
 	if !isUpdateOneMetric {
-		couterMetrics := map[string]int64{}
-		for _, m := range oldMetrics {
-			if types.DataType(m.MType) == types.CounterType {
-				couterMetrics[m.ID] = *m.Delta
-			}
-		}
-		err = json.Unmarshal([]byte(bodyStr), &oldMetrics)
+		newMetrics := []types.Metrics{}
+		err = json.Unmarshal([]byte(bodyStr), &newMetrics)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		for i, m := range oldMetrics {
-			if types.DataType(m.MType) == types.CounterType {
-				oldMetrics[i].Set(*m.Delta + couterMetrics[m.ID])
-			}
-			repoData.Set(oldMetrics[i])
+		for _, m := range newMetrics {
+			repoData.Set(m)
 		}
-		txtM, err = json.Marshal(oldMetrics)
+		newMetrics = repoData.GetAll()
+		txtM, err = json.Marshal(newMetrics)
+		storeTxt = txtM
 	} else {
 		updateOneMetric, err = repoData.Get(updateOneMetric.ID)
 		txtM, err = json.Marshal(updateOneMetric)
+		if err == nil {
+			tmpMetrics := []types.Metrics{updateOneMetric}
+			storeTxt, _ = json.Marshal(tmpMetrics)
+		}
 	}
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if hStruct.StoreFunc != nil {
+		hStruct.StoreFunc(string(storeTxt))
 	}
 
 	w.Header().Set("Content-Type", "application/json")

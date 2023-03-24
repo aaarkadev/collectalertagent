@@ -1,6 +1,10 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"time"
+)
 
 type DataType string
 type DataSource uint8
@@ -14,7 +18,21 @@ type Metrics struct {
 }
 
 type ServerHandlerData struct {
-	Data interface{}
+	Data      interface{}
+	StoreFunc func(data string)
+}
+type ServerConfig struct {
+	ListenAddress string
+	StoreInterval time.Duration
+	StoreFileName string
+	IsRestore     bool
+	StoreFile     *os.File
+}
+
+type AgentConfig struct {
+	SendAddress    string
+	ReportInterval time.Duration
+	PollInterval   time.Duration
 }
 
 const (
