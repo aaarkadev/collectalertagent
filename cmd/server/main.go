@@ -1,14 +1,14 @@
 package main
 
 import (
-	"log"
-	"net/http"
-
 	"context"
 	"encoding/json"
+	"flag"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
+
 	"syscall"
 	"time"
 
@@ -27,36 +27,36 @@ func initConfig() types.ServerConfig {
 
 	config := types.ServerConfig{}
 
-	config.ListenAddress = os.Getenv("ADDRESS")
-	if len(config.ListenAddress) <= 0 {
-		config.ListenAddress = "127.0.0.1:8080"
-	}
+	defaultListenAddress := "127.0.0.1:8080"
+	flag.StringVar(&config.ListenAddress, "a", defaultListenAddress, "address to listen on")
 
 	defaultStoreInterval := 300 * time.Second
-	envVal, envErr := os.LookupEnv("STORE_INTERVAL")
-	if !envErr {
-		config.StoreInterval = defaultStoreInterval
-	} else {
-		envInt, err := strconv.Atoi(envVal)
-		if err == nil {
-			config.StoreInterval = time.Duration(envInt) * time.Second
-		} else {
-			config.StoreInterval = defaultStoreInterval
-		}
-	}
+	flag.DurationVar(&config.StoreInterval, "i", defaultStoreInterval, "store interval")
+
+	flag.BoolVar(&config.IsRestore, "r", false, "is restore DB")
 
 	defaultStoreFile := "/tmp/devops-metrics-db.json"
-	envVal, envErr = os.LookupEnv("STORE_FILE")
-	if !envErr {
-		config.StoreFileName = defaultStoreFile
-	} else {
+	flag.StringVar(&config.StoreFileName, "f", defaultStoreFile, "store filepath")
+
+	flag.Parse()
+
+	envVal, envFound := os.LookupEnv("ADDRESS")
+	if envFound {
+		config.ListenAddress = envVal
+	}
+	envVal, envFound = os.LookupEnv("STORE_INTERVAL")
+	if envFound {
+		envDur, err := time.ParseDuration(envVal)
+		if err == nil {
+			config.StoreInterval = envDur
+		}
+	}
+	envVal, envFound = os.LookupEnv("STORE_FILE")
+	if envFound {
 		config.StoreFileName = envVal
 	}
-
-	envVal, envErr = os.LookupEnv("RESTORE")
-	if !envErr {
-		config.IsRestore = false
-	} else {
+	envVal, envFound = os.LookupEnv("RESTORE")
+	if envFound {
 		if envVal == "true" {
 			config.IsRestore = true
 		} else {

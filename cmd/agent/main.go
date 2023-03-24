@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -19,9 +20,6 @@ import (
 	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/aaarkadev/collectalertagent/internal/types"
 )
-
-const pollInterval = 2 * time.Second
-const reportInterval = 10 * time.Second
 
 func getFloat(unk interface{}) (float64, error) {
 	switch i := unk.(type) {
@@ -226,32 +224,35 @@ func initConfig() types.AgentConfig {
 
 	config := types.AgentConfig{}
 
-	config.SendAddress = os.Getenv("ADDRESS")
-	if len(config.SendAddress) <= 0 {
-		config.SendAddress = "127.0.0.1:8080"
+	defaultSendAddress := "127.0.0.1:8080"
+	flag.StringVar(&config.SendAddress, "a", defaultSendAddress, "address to listen on")
+
+	defaultReportInterval := 10 * time.Second
+	flag.DurationVar(&config.ReportInterval, "r", defaultReportInterval, "report interval")
+
+	defaultPollInterval := 2 * time.Second
+	flag.DurationVar(&config.PollInterval, "p", defaultPollInterval, "poll interval")
+
+	flag.Parse()
+
+	envVal, envFound := os.LookupEnv("ADDRESS")
+	if envFound {
+		config.SendAddress = envVal
 	}
 
-	envVal, envErr := os.LookupEnv("REPORT_INTERVAL")
-	if !envErr {
-		config.ReportInterval = reportInterval
-	} else {
-		envInt, err := strconv.Atoi(envVal)
+	envVal, envFound = os.LookupEnv("REPORT_INTERVAL")
+	if envFound {
+		envDur, err := time.ParseDuration(envVal)
 		if err == nil {
-			config.ReportInterval = time.Duration(envInt) * time.Second
-		} else {
-			config.ReportInterval = reportInterval
+			config.ReportInterval = envDur
 		}
 	}
 
-	envVal, envErr = os.LookupEnv("POLL_INTERVAL")
-	if !envErr {
-		config.PollInterval = pollInterval
-	} else {
-		envInt, err := strconv.Atoi(envVal)
+	envVal, envFound = os.LookupEnv("POLL_INTERVAL")
+	if envFound {
+		envDur, err := time.ParseDuration(envVal)
 		if err == nil {
-			config.PollInterval = time.Duration(envInt) * time.Second
-		} else {
-			config.PollInterval = pollInterval
+			config.PollInterval = envDur
 		}
 	}
 	return config
