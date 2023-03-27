@@ -2,7 +2,6 @@ package types
 
 import (
 	"fmt"
-	"os"
 	"time"
 )
 
@@ -17,16 +16,11 @@ type Metrics struct {
 	Source DataSource `json:"-"`
 }
 
-type ServerHandlerData struct {
-	Data      interface{}
-	StoreFunc func(data string)
-}
 type ServerConfig struct {
 	ListenAddress string
 	StoreInterval time.Duration
 	StoreFileName string
 	IsRestore     bool
-	StoreFile     *os.File
 }
 
 type AgentConfig struct {

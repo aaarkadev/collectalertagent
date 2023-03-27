@@ -9,4 +9,6 @@ type Repo interface {
 	Get(k string) (types.Metrics, error)
 	GetAll() []types.Metrics
 	Init() bool
+	Shutdown()
+	FlushDB()
 }

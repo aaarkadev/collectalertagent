@@ -32,7 +32,9 @@ func (m *MemStorage) Get(k string) (types.Metrics, error) {
 }
 
 func (m *MemStorage) Set(mset types.Metrics) bool {
-
+	if mset.Delta == nil && mset.Value == nil {
+		return false
+	}
 	_, err := m.Get(mset.ID)
 
 	if err != nil {
@@ -51,4 +53,11 @@ func (m *MemStorage) Set(mset types.Metrics) bool {
 	}
 
 	return true
+}
+
+func (m *MemStorage) FlushDB() {
+}
+
+func (m *MemStorage) Shutdown() {
+
 }

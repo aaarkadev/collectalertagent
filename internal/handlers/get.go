@@ -8,16 +8,13 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/servers"
 	"github.com/aaarkadev/collectalertagent/internal/types"
 	"github.com/go-chi/chi/v5"
 )
 
-type GetMetricsHandler struct {
-	types.ServerHandlerData
-}
+func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
-func (hStruct GetMetricsHandler) HandlerFuncAll(w http.ResponseWriter, r *http.Request) {
 	body := `<!doctype html><html lang="ru">
 			<body>
 				<table width="50%%" border="1">
@@ -30,43 +27,44 @@ func (hStruct GetMetricsHandler) HandlerFuncAll(w http.ResponseWriter, r *http.R
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	repoData, ok := hStruct.Data.(repositories.Repo)
-	if !ok {
-		http.Error(w, "handler data type assertion to Repo fail", http.StatusBadRequest)
+
+	if serverData == nil || serverData.Repo == nil {
+		http.Error(w, "Repo fail", http.StatusBadRequest)
 		return
 	}
+	repoData := serverData.Repo
 
 	metrics := repoData.GetAll()
 	tableStr := []string{}
 	for _, v := range metrics {
 		tableStr = append(tableStr, "<tr><td>", v.ID, "</td><td>", v.Get(), "</td></tr>")
 	}
-	body = fmt.Sprintf(body, strings.Join(tableStr, "\r\n"))
 
 	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(http.StatusOK)
+	//w.WriteHeader(http.StatusOK)
 
-	w.Write([]byte(body))
+	io.WriteString(w, fmt.Sprintf(body, strings.Join(tableStr, "\r\n")))
 }
 
-func (hStruct GetMetricsHandler) HandlerFuncOneJson(w http.ResponseWriter, r *http.Request) {
+func HandlerFuncOneJson(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 	if r.Header.Get("Content-Type") != "application/json" {
 		http.Error(w, "wrong Content-Type!", http.StatusBadRequest)
 		return
 	}
 
 	bodyBytes, err := io.ReadAll(r.Body)
+
 	bodyStr := strings.Trim(string(bodyBytes[:]), " /")
 	if err != nil || len(bodyStr) <= 0 {
 		http.Error(w, "BadRequest", http.StatusBadRequest)
 		return
 	}
 
-	repoData, ok := hStruct.Data.(repositories.Repo)
-	if !ok {
-		http.Error(w, "handler data type assertion to Repo fail", http.StatusBadRequest)
+	if serverData == nil || serverData.Repo == nil {
+		http.Error(w, "Repo fail", http.StatusBadRequest)
 		return
 	}
+	repoData := serverData.Repo
 
 	metricVal := types.Metrics{}
 	err = json.Unmarshal([]byte(bodyStr), &metricVal)
@@ -94,11 +92,11 @@ func (hStruct GetMetricsHandler) HandlerFuncOneJson(w http.ResponseWriter, r *ht
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(txtM))
+	//w.WriteHeader(http.StatusOK)
+	w.Write(txtM)
 }
 
-func (hStruct GetMetricsHandler) HandlerFuncOneRaw(w http.ResponseWriter, r *http.Request) {
+func HandlerFuncOneRaw(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	httpErr := http.StatusOK
 	typeParam := chi.URLParam(r, "type")
@@ -121,11 +119,11 @@ func (hStruct GetMetricsHandler) HandlerFuncOneRaw(w http.ResponseWriter, r *htt
 		return
 	}
 
-	repoData, ok := hStruct.Data.(repositories.Repo)
-	if !ok {
-		http.Error(w, "handler data type assertion to Repo fail", http.StatusBadRequest)
+	if serverData == nil || serverData.Repo == nil {
+		http.Error(w, "Repo fail", http.StatusBadRequest)
 		return
 	}
+	repoData := serverData.Repo
 
 	oldVal, oldValErr := repoData.Get(nameParam)
 	if oldValErr != nil {
@@ -135,7 +133,7 @@ func (hStruct GetMetricsHandler) HandlerFuncOneRaw(w http.ResponseWriter, r *htt
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
+	//w.WriteHeader(http.StatusOK)
 
 	w.Write([]byte(oldVal.Get()))
 }
