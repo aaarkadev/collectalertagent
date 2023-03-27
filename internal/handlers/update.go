@@ -73,7 +73,7 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 	nameParam := chi.URLParam(r, "name")
 	valueParam := chi.URLParam(r, "value")
 
-	if typeParam != "gauge" && typeParam != "counter" {
+	if types.DataType(typeParam) != types.GaugeType && types.DataType(typeParam) != types.CounterType {
 		httpErr = http.StatusNotImplemented
 	}
 
@@ -86,7 +86,7 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 		}
 	}
 
-	if httpErr == http.StatusOK && typeParam == "gauge" {
+	if httpErr == http.StatusOK && types.DataType(typeParam) == types.GaugeType {
 		if floatV, parseErr = strconv.ParseFloat(valueParam, 64); parseErr != nil {
 			httpErr = http.StatusBadRequest
 		}
@@ -112,7 +112,7 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 
 	var newM *types.Metrics
 	var newMerr error
-	if typeParam == "gauge" {
+	if types.DataType(typeParam) == types.GaugeType {
 		newM, newMerr = types.NewMetric(nameParam, types.DataType(typeParam), types.OsSource)
 	} else {
 		newM, newMerr = types.NewMetric(nameParam, types.DataType(typeParam), types.IncrementSource)
@@ -120,7 +120,7 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 	if newMerr != nil {
 		panic("NewMetric error")
 	}
-	if typeParam == "gauge" {
+	if types.DataType(typeParam) == types.GaugeType {
 		newM.Set(float64(floatV))
 	} else {
 		newM.Set(int64(intV))

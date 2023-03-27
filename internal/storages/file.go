@@ -24,7 +24,7 @@ func (m *FileStorage) Init() bool {
 	if len(m.Config.StoreFileName) > 0 {
 		fmode := os.O_RDWR | os.O_CREATE
 		if !m.Config.IsRestore {
-			fmode = fmode | os.O_TRUNC
+			fmode |= os.O_TRUNC
 		}
 		file, fileErr := os.OpenFile(m.Config.StoreFileName, fmode, 0777)
 		if fileErr == nil {

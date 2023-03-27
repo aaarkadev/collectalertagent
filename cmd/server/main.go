@@ -86,7 +86,7 @@ func main() {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel()
 
-	servers.StartServer(config, router, mainCtx)
+	servers.StartServer(mainCtx, config, router)
 
 	fmt.Println("SERVER END")
 

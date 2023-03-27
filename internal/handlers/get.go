@@ -102,7 +102,7 @@ func HandlerFuncOneRaw(w http.ResponseWriter, r *http.Request, serverData *serve
 	typeParam := chi.URLParam(r, "type")
 	nameParam := chi.URLParam(r, "name")
 
-	if typeParam != "gauge" && typeParam != "counter" {
+	if types.DataType(typeParam) != types.GaugeType && types.DataType(typeParam) != types.CounterType {
 		httpErr = http.StatusNotImplemented
 	}
 

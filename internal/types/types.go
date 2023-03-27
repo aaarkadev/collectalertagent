@@ -94,7 +94,7 @@ func (m *Metrics) SetMetric(newM Metrics) bool {
 	switch DataType(m.MType) {
 	case CounterType:
 		{
-			*m.Delta = *m.Delta + *newM.Delta
+			*m.Delta += *newM.Delta
 		}
 	default:
 		{
@@ -111,7 +111,7 @@ func (m *Metrics) Set(val interface{}) bool {
 		{
 			v, ok := val.(int64)
 			if ok {
-				*m.Delta = int64(v)
+				*m.Delta = v
 			} else {
 				return false
 			}
@@ -120,7 +120,7 @@ func (m *Metrics) Set(val interface{}) bool {
 		{
 			v, ok := val.(float64)
 			if ok {
-				*m.Value = float64(v)
+				*m.Value = v
 			} else {
 				return false
 			}

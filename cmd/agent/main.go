@@ -34,23 +34,23 @@ func UpdateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
 	case types.RandSource:
 		{
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			m.Set(float64(r.Float64()))
+			m.Set(r.Float64())
 		}
 	default:
 		{
 			structFieldVal := statStructReflect.FieldByName(m.ID)
 			if structFieldVal.IsValid() {
-				v := float64(0.0)
+				floatVal := float64(0.0)
 				if structFieldVal.CanFloat() {
-					v = numToFloat(structFieldVal.Float())
+					floatVal = numToFloat(structFieldVal.Float())
 				} else if structFieldVal.CanUint() {
-					v = numToFloat(structFieldVal.Uint())
+					floatVal = numToFloat(structFieldVal.Uint())
 				} else {
-					v = numToFloat(structFieldVal.Int())
+					floatVal = numToFloat(structFieldVal.Int())
 				}
 				//fieldType := structFieldVal.Type()
 				//structFieldInterface := structFieldVal.Interface()
-				m.Set(float64(v))
+				m.Set(float64(floatVal))
 			}
 		}
 	}
@@ -61,16 +61,16 @@ func UpdateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
 func UpdatelMetrics(rep repositories.Repo) bool {
 	var osStats = runtime.MemStats{}
 	runtime.ReadMemStats(&osStats)
-	rv := reflect.ValueOf(&osStats)
-	if rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
+	reflectVal := reflect.ValueOf(&osStats)
+	if reflectVal.Kind() == reflect.Ptr {
+		reflectVal = reflectVal.Elem()
 	}
-	if rv.Kind() != reflect.Struct {
+	if reflectVal.Kind() != reflect.Struct {
 		return false
 	}
 
 	for _, mElem := range rep.GetAll() {
-		mElem = UpdateOne(mElem, rv)
+		mElem = UpdateOne(mElem, reflectVal)
 		ok := rep.Set(mElem)
 		if !ok {
 			log.Fatal("error repo set element")
@@ -145,7 +145,7 @@ func sendMetricsJson(rep repositories.Repo, config types.AgentConfig) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	req, rqErr := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(txtM))
+	req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(txtM))
 	if rqErr != nil {
 		return
 	}
@@ -173,7 +173,7 @@ func sendMetricsRaw(rep repositories.Repo, config types.AgentConfig) {
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
 
-		req, rqErr := http.NewRequestWithContext(ctx, "POST", url, nil)
+		req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 		if rqErr != nil {
 			continue
 		}

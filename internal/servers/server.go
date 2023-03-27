@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"strings"
 
-	"log"
 	"syscall"
 	"time"
 
@@ -118,7 +117,7 @@ func GzipMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func StartServer(config types.ServerConfig, router http.Handler, mainCtx context.Context) *http.Server {
+func StartServer(mainCtx context.Context, config types.ServerConfig, router http.Handler) *http.Server {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan,
@@ -141,7 +140,7 @@ func StartServer(config types.ServerConfig, router http.Handler, mainCtx context
 	defer shutdownCtxCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	return server
