@@ -13,49 +13,16 @@ import (
 	"os"
 	"reflect"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/aaarkadev/collectalertagent/internal/types"
+	"golang.org/x/exp/constraints"
 )
 
-func getFloat(unk interface{}) (float64, error) {
-	switch i := unk.(type) {
-	case float64:
-		return float64(i), nil
-	case float32:
-		return float64(i), nil
-	case int64:
-		return float64(i), nil
-	case int32:
-		return float64(i), nil
-	case int16:
-		return float64(i), nil
-	case int8:
-		return float64(i), nil
-	case uint64:
-		return float64(i), nil
-	case uint32:
-		return float64(i), nil
-	case uint16:
-		return float64(i), nil
-	case uint8:
-		return float64(i), nil
-	case int:
-		return float64(i), nil
-	case uint:
-		return float64(i), nil
-	case string:
-		f, err := strconv.ParseFloat(i, 64)
-		if err != nil {
-			return 0, err
-		}
-		return f, err
-	default:
-		return 0, fmt.Errorf("getFloat: unknown value is of incompatible type")
-	}
+func numToFloat[T constraints.Integer | constraints.Float](a T) float64 {
+	return float64(a)
 }
 
 func UpdateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
@@ -73,11 +40,17 @@ func UpdateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
 		{
 			structFieldVal := statStructReflect.FieldByName(m.ID)
 			if structFieldVal.IsValid() {
-				structFieldInterface := structFieldVal.Interface()
-				v, err := getFloat(structFieldInterface)
-				if err == nil {
-					m.Set(float64(v))
+				v := float64(0.0)
+				if structFieldVal.CanFloat() {
+					v = numToFloat(structFieldVal.Float())
+				} else if structFieldVal.CanUint() {
+					v = numToFloat(structFieldVal.Uint())
+				} else {
+					v = numToFloat(structFieldVal.Int())
 				}
+				//fieldType := structFieldVal.Type()
+				//structFieldInterface := structFieldVal.Interface()
+				m.Set(float64(v))
 			}
 		}
 	}
