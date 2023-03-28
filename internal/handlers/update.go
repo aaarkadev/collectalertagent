@@ -32,6 +32,21 @@ func HandlerUpdateJson(w http.ResponseWriter, r *http.Request, serverData *serve
 	isUpdateOneMetric := false
 	err = json.Unmarshal([]byte(bodyStr), &updateOneMetric)
 	if err == nil {
+
+		if !types.DataType(updateOneMetric.MType).IsValid() {
+			http.Error(w, "DataType invalid", http.StatusBadRequest)
+			return
+		}
+
+		if types.DataType(updateOneMetric.MType) == types.GaugeType && updateOneMetric.Value == nil {
+			http.Error(w, "empty value", http.StatusBadRequest)
+			return
+		}
+		if types.DataType(updateOneMetric.MType) == types.CounterType && updateOneMetric.Delta == nil {
+			http.Error(w, "empty delta", http.StatusBadRequest)
+			return
+		}
+
 		serverData.Repo.Set(updateOneMetric)
 		isUpdateOneMetric = true
 	}
@@ -80,7 +95,7 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 	intV := 0
 	floatV := 0.0
 	var parseErr error
-	if httpErr == http.StatusOK && typeParam == "counter" {
+	if httpErr == http.StatusOK && types.DataType(typeParam) == types.CounterType {
 		if intV, parseErr = strconv.Atoi(valueParam); parseErr != nil {
 			httpErr = http.StatusBadRequest
 		}
