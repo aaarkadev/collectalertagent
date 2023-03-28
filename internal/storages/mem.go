@@ -14,7 +14,7 @@ type MemStorage struct {
 var _ repositories.Repo = (*MemStorage)(nil)
 
 func (repo *MemStorage) Init() bool {
-	repo.metrics = make([]types.Metrics, 0, 0)
+	repo.metrics = make([]types.Metrics, 0)
 	return true
 }
 
@@ -55,9 +55,9 @@ func (repo *MemStorage) Set(mset types.Metrics) bool {
 	return true
 }
 
-func (m *MemStorage) FlushDB() {
+func (repo *MemStorage) FlushDB() {
 }
 
-func (m *MemStorage) Shutdown() {
+func (repo *MemStorage) Shutdown() {
 
 }

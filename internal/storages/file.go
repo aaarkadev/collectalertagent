@@ -42,13 +42,8 @@ func (repo *FileStorage) Init() bool {
 		}
 		storeTicker := time.NewTicker(repo.Config.StoreInterval)
 		defer storeTicker.Stop()
-		for {
-			select {
-			case <-storeTicker.C:
-				{
-					repo.StoreDBfunc()
-				}
-			}
+		for range storeTicker.C {
+			repo.StoreDBfunc()
 		}
 	}()
 
