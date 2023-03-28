@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func HandlerUpdateJson(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	bodyStr := strings.Trim(string(bodyBytes[:]), " /")
@@ -51,7 +51,7 @@ func HandlerUpdateJson(w http.ResponseWriter, r *http.Request, serverData *serve
 		isUpdateOneMetric = true
 	}
 
-	txtM := []byte{}
+	var txtM []byte
 	if !isUpdateOneMetric {
 		newMetrics := []types.Metrics{}
 		err = json.Unmarshal([]byte(bodyStr), &newMetrics)
@@ -65,7 +65,7 @@ func HandlerUpdateJson(w http.ResponseWriter, r *http.Request, serverData *serve
 		newMetrics = serverData.Repo.GetAll()
 		txtM, err = json.Marshal(newMetrics)
 	} else {
-		updateOneMetric, err = serverData.Repo.Get(updateOneMetric.ID)
+		updateOneMetric, _ = serverData.Repo.Get(updateOneMetric.ID)
 		txtM, err = json.Marshal(updateOneMetric)
 	}
 
@@ -78,7 +78,7 @@ func HandlerUpdateJson(w http.ResponseWriter, r *http.Request, serverData *serve
 
 	w.Header().Set("Content-Type", "application/json")
 	//w.WriteHeader(http.StatusOK)
-	w.Write([]byte(txtM))
+	w.Write(txtM)
 }
 
 func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {

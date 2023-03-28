@@ -46,7 +46,7 @@ func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.
 	io.WriteString(w, fmt.Sprintf(body, strings.Join(tableStr, "\r\n")))
 }
 
-func HandlerFuncOneJson(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 	if r.Header.Get("Content-Type") != "application/json" {
 		http.Error(w, "wrong Content-Type!", http.StatusBadRequest)
 		return

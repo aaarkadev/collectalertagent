@@ -77,10 +77,10 @@ func main() {
 	//router.Use(middleware.Compress(6, "gzip"))
 
 	router.Post("/update/{type}/{name}/{value}", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateRaw))
-	router.Post("/update/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateJson))
+	router.Post("/update/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateJSON))
 
 	router.Get("/value/{type}/{name}", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneRaw))
-	router.Post("/value/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneJson))
+	router.Post("/value/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneJSON))
 	router.Get("/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncAll))
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())

@@ -132,7 +132,7 @@ func InitAllMetrics(rep repositories.Repo) {
 
 var collectedMetric storages.MemStorage
 
-func sendMetricsJson(rep repositories.Repo, config types.AgentConfig) {
+func sendMetricsJSON(rep repositories.Repo, config types.AgentConfig) {
 	client := &http.Client{}
 	client.Timeout = 10 * time.Second
 
@@ -252,7 +252,7 @@ func main() {
 		case <-reportTicker.C:
 			{
 				go func() {
-					sendMetricsJson(&collectedMetric, config)
+					sendMetricsJSON(&collectedMetric, config)
 				}()
 			}
 		}
