@@ -12,6 +12,7 @@ type ServerConfig struct {
 	StoreFileName string
 	IsRestore     bool
 	HashKey       []byte
+	DSN           string
 }
 
 type AgentConfig struct {
@@ -19,6 +20,7 @@ type AgentConfig struct {
 	ReportInterval time.Duration
 	PollInterval   time.Duration
 	HashKey        []byte
+	DSN            string
 }
 
 func InitServerConfig() ServerConfig {
@@ -39,6 +41,9 @@ func InitServerConfig() ServerConfig {
 	defaultHashKey := ""
 	HashKeyStr := ""
 	flag.StringVar(&HashKeyStr, "k", defaultHashKey, "hash key")
+
+	defaultDSN := ""
+	flag.StringVar(&config.DSN, "d", defaultDSN, "db DSN string")
 
 	flag.Parse()
 
@@ -72,6 +77,11 @@ func InitServerConfig() ServerConfig {
 		config.HashKey = []byte(envVal)
 	}
 
+	envVal, envFound = os.LookupEnv("DATABASE_DSN")
+	if envFound {
+		config.DSN = envVal
+	}
+
 	return config
 }
 
@@ -91,6 +101,9 @@ func InitAgentConfig() AgentConfig {
 	defaultHashKey := ""
 	HashKeyStr := ""
 	flag.StringVar(&HashKeyStr, "k", defaultHashKey, "hash key")
+
+	defaultDSN := ""
+	flag.StringVar(&config.DSN, "d", defaultDSN, "db DSN string")
 
 	flag.Parse()
 
@@ -120,6 +133,11 @@ func InitAgentConfig() AgentConfig {
 	envVal, envFound = os.LookupEnv("KEY")
 	if envFound {
 		config.HashKey = []byte(envVal)
+	}
+
+	envVal, envFound = os.LookupEnv("DATABASE_DSN")
+	if envFound {
+		config.DSN = envVal
 	}
 
 	return config

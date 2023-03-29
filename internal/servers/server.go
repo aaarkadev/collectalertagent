@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 
+	"database/sql"
 	"syscall"
 	"time"
 
@@ -22,6 +23,7 @@ type ServerHandlerData struct {
 	IsHeadersWriten bool
 	Writer          gzip.Writer
 	http.ResponseWriter
+	DbConn *sql.DB
 }
 
 func (w *ServerHandlerData) WriteHeader(code int) {

@@ -98,6 +98,19 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 	w.Write(txtM)
 }
 
+func HandlerPingDB(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+	if len(serverData.Config.DSN) < 1 {
+		http.Error(w, "DSN empty or no connection to DB", http.StatusInternalServerError)
+		return
+	}
+	pingErr := serverData.DbConn.Ping()
+	if pingErr != nil {
+		http.Error(w, "unable ping DB", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func HandlerFuncOneRaw(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	httpErr := http.StatusOK
