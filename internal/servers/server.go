@@ -12,12 +12,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
-	"github.com/aaarkadev/collectalertagent/internal/types"
 )
 
 type ServerHandlerData struct {
 	Repo            repositories.Repo
+	Config          configs.ServerConfig
 	IsHeadersWriten bool
 	Writer          gzip.Writer
 	http.ResponseWriter
@@ -117,7 +118,7 @@ func GzipMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func StartServer(mainCtx context.Context, config types.ServerConfig, router http.Handler) *http.Server {
+func StartServer(mainCtx context.Context, config configs.ServerConfig, router http.Handler) *http.Server {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan,

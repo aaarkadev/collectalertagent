@@ -85,6 +85,8 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 		http.Error(w, "Err", http.StatusNotFound)
 		return
 	}
+
+	metricVal.GenHash(serverData.Config.HashKey)
 	txtM, err := json.Marshal(metricVal)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

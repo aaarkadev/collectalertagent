@@ -1,8 +1,9 @@
 package types
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"fmt"
-	"time"
 )
 
 type DataType string
@@ -13,20 +14,8 @@ type Metrics struct {
 	MType  string     `json:"type"`
 	Delta  *int64     `json:"delta,omitempty"`
 	Value  *float64   `json:"value,omitempty"`
+	Hash   string     `json:"hash,omitempty"`
 	Source DataSource `json:"-"`
-}
-
-type ServerConfig struct {
-	ListenAddress string
-	StoreInterval time.Duration
-	StoreFileName string
-	IsRestore     bool
-}
-
-type AgentConfig struct {
-	SendAddress    string
-	ReportInterval time.Duration
-	PollInterval   time.Duration
 }
 
 const (
@@ -69,6 +58,27 @@ func (m *Metrics) Init() {
 	default:
 		m.Value = new(float64)
 	}
+}
+
+func (m *Metrics) GenHash(key []byte) {
+	if len(key) < 1 {
+		return
+	}
+
+	var strForHash string
+	switch m.MType {
+	case "counter":
+		strForHash = fmt.Sprintf("%s:%s:%d", m.ID, m.MType, *m.Delta)
+	case "gauge":
+		strForHash = fmt.Sprintf("%s:%s:%f", m.ID, m.MType, *m.Value)
+	}
+
+	h := hmac.New(sha256.New, key)
+	_, err := h.Write([]byte(strForHash))
+	if err != nil {
+		return
+	}
+	m.Hash = fmt.Sprintf("%x", h.Sum(nil))
 }
 
 func (m *Metrics) Get() string {

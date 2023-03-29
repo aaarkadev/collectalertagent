@@ -4,17 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
 	"reflect"
 	"runtime"
 	"time"
 
+	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/aaarkadev/collectalertagent/internal/types"
@@ -132,9 +131,15 @@ func InitAllMetrics(rep repositories.Repo) {
 
 var collectedMetric storages.MemStorage
 
-func sendMetricsJSON(rep repositories.Repo, config types.AgentConfig) {
+func sendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
 	client.Timeout = 10 * time.Second
+
+	hashedMetrics := []types.Metrics{}
+	for _, mElem := range rep.GetAll() {
+		mElem.GenHash(config.HashKey)
+		hashedMetrics = append(hashedMetrics, mElem)
+	}
 
 	txtM, err := json.Marshal(rep.GetAll())
 
@@ -163,7 +168,7 @@ func sendMetricsJSON(rep repositories.Repo, config types.AgentConfig) {
 	response.Body.Close()
 }
 
-func sendMetricsRaw(rep repositories.Repo, config types.AgentConfig) {
+func sendMetricsRaw(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
 	client.Timeout = 10 * time.Second
 
@@ -193,48 +198,10 @@ func sendMetricsRaw(rep repositories.Repo, config types.AgentConfig) {
 	}
 }
 
-func initConfig() types.AgentConfig {
-
-	config := types.AgentConfig{}
-
-	defaultSendAddress := "127.0.0.1:8080"
-	flag.StringVar(&config.SendAddress, "a", defaultSendAddress, "address to listen on")
-
-	defaultReportInterval := 10 * time.Second
-	flag.DurationVar(&config.ReportInterval, "r", defaultReportInterval, "report interval")
-
-	defaultPollInterval := 2 * time.Second
-	flag.DurationVar(&config.PollInterval, "p", defaultPollInterval, "poll interval")
-
-	flag.Parse()
-
-	envVal, envFound := os.LookupEnv("ADDRESS")
-	if envFound {
-		config.SendAddress = envVal
-	}
-
-	envVal, envFound = os.LookupEnv("REPORT_INTERVAL")
-	if envFound {
-		envDur, err := time.ParseDuration(envVal)
-		if err == nil {
-			config.ReportInterval = envDur
-		}
-	}
-
-	envVal, envFound = os.LookupEnv("POLL_INTERVAL")
-	if envFound {
-		envDur, err := time.ParseDuration(envVal)
-		if err == nil {
-			config.PollInterval = envDur
-		}
-	}
-	return config
-}
-
 func main() {
 	collectedMetric = storages.MemStorage{}
 	InitAllMetrics(&collectedMetric)
-	config := initConfig()
+	config := configs.InitAgentConfig()
 
 	pollTicker := time.NewTicker(config.PollInterval)
 	defer pollTicker.Stop()
