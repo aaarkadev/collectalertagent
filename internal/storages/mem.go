@@ -61,3 +61,7 @@ func (repo *MemStorage) FlushDB() {
 func (repo *MemStorage) Shutdown() {
 
 }
+
+func (repo *MemStorage) Ping() error {
+	return nil
+}

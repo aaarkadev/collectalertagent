@@ -133,7 +133,7 @@ var collectedMetric storages.MemStorage
 
 func sendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
-	client.Timeout = 10 * time.Second
+	client.Timeout = configs.GlobalDefaultTimeout
 
 	hashedMetrics := []types.Metrics{}
 	for _, mElem := range rep.GetAll() {
@@ -147,7 +147,7 @@ func sendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 		panic(err)
 	}
 	url := fmt.Sprintf("http://%v/update/", config.SendAddress)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), configs.GlobalDefaultTimeout)
 	defer cancel()
 
 	req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(txtM))
@@ -170,12 +170,12 @@ func sendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 
 func sendMetricsRaw(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
-	client.Timeout = 10 * time.Second
+	client.Timeout = configs.GlobalDefaultTimeout
 
 	for _, v := range rep.GetAll() {
 		url := fmt.Sprintf("http://%v/update/%v/%v/%v", config.SendAddress, v.MType, v.ID, v.Get())
 
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), configs.GlobalDefaultTimeout)
 		defer cancel()
 
 		req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)

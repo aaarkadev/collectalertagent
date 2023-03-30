@@ -9,9 +9,7 @@ import (
 	"os/signal"
 	"strings"
 
-	"database/sql"
 	"syscall"
-	"time"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
@@ -23,7 +21,6 @@ type ServerHandlerData struct {
 	IsHeadersWriten bool
 	Writer          gzip.Writer
 	http.ResponseWriter
-	DbConn *sql.DB
 }
 
 func (w *ServerHandlerData) WriteHeader(code int) {
@@ -139,7 +136,7 @@ func StartServer(mainCtx context.Context, config configs.ServerConfig, router ht
 
 	<-sigChan
 
-	shutdownCtx, shutdownCtxCancel := context.WithTimeout(mainCtx, 15*time.Second)
+	shutdownCtx, shutdownCtxCancel := context.WithTimeout(mainCtx, configs.GlobalDefaultTimeout)
 	defer shutdownCtxCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {

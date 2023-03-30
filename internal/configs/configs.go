@@ -1,10 +1,13 @@
 package configs
 
 import (
+	"context"
 	"flag"
 	"os"
 	"time"
 )
+
+const GlobalDefaultTimeout = 15 * time.Second
 
 type ServerConfig struct {
 	ListenAddress string
@@ -13,6 +16,7 @@ type ServerConfig struct {
 	IsRestore     bool
 	HashKey       []byte
 	DSN           string
+	MainCtx       context.Context
 }
 
 type AgentConfig struct {

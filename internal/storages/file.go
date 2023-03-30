@@ -32,6 +32,7 @@ func (repo *FileStorage) Init() bool {
 			repo.StoreFile = file
 		} else {
 			repo.Config.StoreFileName = ""
+			return false
 		}
 	}
 
@@ -121,4 +122,8 @@ func (repo *FileStorage) FlushDB() {
 		return
 	}
 
+}
+
+func (repo *FileStorage) Ping() error {
+	return nil
 }

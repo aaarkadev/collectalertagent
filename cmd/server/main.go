@@ -4,44 +4,40 @@ import (
 	"context"
 	"fmt"
 
-	"database/sql"
-
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/handlers"
+	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/servers"
 	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/go-chi/chi/v5"
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func main() {
-	/*
-		errDb := db.QueryRow("select \"ID\",\"MType\" from metrics limit 1").Scan(&name, &typ)
-		if errDb != nil {
-			fmt.Println(errDb)
-			panic("%")
-		}
-	*/
+
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel()
+
 	config := configs.InitServerConfig()
-	repo := storages.FileStorage{Config: config}
-	repo.Init()
+	config.MainCtx = mainCtx
+
+	config.StoreInterval = 0 /*???? iteration11_test.go has -i5m */
+
+	var repo repositories.Repo
+	repo = &storages.DBStorage{Config: config}
+	// repo = repositories.Repo(&storages.DBStorage{Config: config})
+	isInitSuccess := repo.Init()
+	if !isInitSuccess {
+		repo = &storages.FileStorage{Config: config}
+		// repo = (*storages.FileStorage)(&storages.FileStorage{Config: config})
+		isInitSuccess = repo.Init()
+	}
 	defer func() {
 		repo.Shutdown()
 	}()
 
 	serverData := servers.ServerHandlerData{}
-	serverData.Repo = &repo
+	serverData.Repo = repo
 	serverData.Config = config
-	if len(config.DSN) > 0 {
-		//"postgres://dron:dron@localhost:5432/dron"
-		conn, connErr := sql.Open("pgx", config.DSN)
-		if connErr != nil {
-			config.DSN = ""
-		} else {
-			serverData.DbConn = conn
-			defer conn.Close()
-		}
-	}
 
 	router := chi.NewRouter()
 	router.Use(servers.GzipMiddleware)
@@ -56,9 +52,6 @@ func main() {
 	router.Post("/value/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneJSON))
 	router.Get("/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncAll))
 	router.Get("/ping", servers.BindServerToHandler(&serverData, handlers.HandlerPingDB))
-
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	defer mainCtxCancel()
 
 	servers.StartServer(mainCtx, config, router)
 

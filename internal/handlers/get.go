@@ -103,9 +103,9 @@ func HandlerPingDB(w http.ResponseWriter, r *http.Request, serverData *servers.S
 		http.Error(w, "DSN empty or no connection to DB", http.StatusInternalServerError)
 		return
 	}
-	pingErr := serverData.DbConn.Ping()
+	pingErr := serverData.Repo.Ping()
 	if pingErr != nil {
-		http.Error(w, "unable ping DB", http.StatusInternalServerError)
+		http.Error(w, pingErr.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

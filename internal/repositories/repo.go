@@ -11,4 +11,5 @@ type Repo interface {
 	Init() bool
 	Shutdown()
 	FlushDB()
+	Ping() error
 }
