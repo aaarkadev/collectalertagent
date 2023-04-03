@@ -48,7 +48,9 @@ func (repo *DBStorage) Init() bool {
 		} else {
 			repo.DbConn = conn
 		}
-
+	} else {
+		repo.Config.DSN = ""
+		return false
 	}
 
 	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
