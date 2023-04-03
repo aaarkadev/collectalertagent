@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"reflect"
 	"runtime"
+
 	"time"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
@@ -50,6 +51,7 @@ func UpdateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
 				//fieldType := structFieldVal.Type()
 				//structFieldInterface := structFieldVal.Interface()
 				m.Set(float64(floatVal))
+
 			}
 		}
 	}
