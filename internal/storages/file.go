@@ -5,13 +5,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/types"
 )
 
 type FileStorage struct {
 	mem       MemStorage
-	Config    types.ServerConfig
+	Config    configs.ServerConfig
 	StoreFile *os.File
 }
 

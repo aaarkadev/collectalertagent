@@ -2,7 +2,6 @@ package types
 
 import (
 	"fmt"
-	"time"
 )
 
 type DataType string
@@ -14,19 +13,6 @@ type Metrics struct {
 	Delta  *int64     `json:"delta,omitempty"`
 	Value  *float64   `json:"value,omitempty"`
 	Source DataSource `json:"-"`
-}
-
-type ServerConfig struct {
-	ListenAddress string
-	StoreInterval time.Duration
-	StoreFileName string
-	IsRestore     bool
-}
-
-type AgentConfig struct {
-	SendAddress    string
-	ReportInterval time.Duration
-	PollInterval   time.Duration
 }
 
 const (

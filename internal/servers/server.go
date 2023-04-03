@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
-	"github.com/aaarkadev/collectalertagent/internal/types"
 )
 
 type ServerHandlerData struct {
@@ -26,14 +26,7 @@ type ServerHandlerData struct {
 func (w *ServerHandlerData) WriteHeader(code int) {
 
 	w.IsHeadersWriten = true
-	/*w.Header().Del("Content-Length")
-	w.Header()["Content-Length"] = nil
-	w.Header().Set("Transfer-Encoding", "chunked")
-	w.Header().Set("Connection", "Close")
-	*/
 	w.ResponseWriter.WriteHeader(code)
-
-	//if  w.isCompressable() { w.Header().Del("Content-Length")}
 }
 
 func (w *ServerHandlerData) Write(b []byte) (int, error) {
@@ -42,12 +35,8 @@ func (w *ServerHandlerData) Write(b []byte) (int, error) {
 	if w.IsHeadersWriten {
 		isValidContentType = false
 	}
-	/*if len(b) <= 1400 ||   {
-		isValidContentType = false
-	}*/
 
 	if isValidContentType {
-		//mime.ParseMediaType
 		ct := w.Header().Get("Content-Type")
 		if len(ct) <= 0 {
 			ct = http.DetectContentType(b)
@@ -111,13 +100,12 @@ func GzipMiddleware(next http.Handler) http.Handler {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		//defer gz.Close()
 
 		next.ServeHTTP(&ServerHandlerData{ResponseWriter: w, Writer: *gz}, r)
 	})
 }
 
-func StartServer(mainCtx context.Context, config types.ServerConfig, router http.Handler) *http.Server {
+func StartServer(mainCtx context.Context, config configs.ServerConfig, router http.Handler) *http.Server {
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan,

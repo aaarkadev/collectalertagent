@@ -41,7 +41,6 @@ func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	//w.WriteHeader(http.StatusOK)
 
 	io.WriteString(w, fmt.Sprintf(body, strings.Join(tableStr, "\r\n")))
 }
@@ -92,7 +91,6 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	//w.WriteHeader(http.StatusOK)
 	w.Write(txtM)
 }
 
@@ -133,7 +131,6 @@ func HandlerFuncOneRaw(w http.ResponseWriter, r *http.Request, serverData *serve
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	//w.WriteHeader(http.StatusOK)
 
 	w.Write([]byte(oldVal.Get()))
 }

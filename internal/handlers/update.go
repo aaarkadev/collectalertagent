@@ -77,7 +77,6 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 	serverData.Repo.FlushDB()
 
 	w.Header().Set("Content-Type", "application/json")
-	//w.WriteHeader(http.StatusOK)
 	w.Write(txtM)
 }
 
@@ -148,7 +147,6 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 	serverData.Repo.FlushDB()
 
 	w.Header().Set("Content-Type", "text/plain")
-	//w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Ok"))
 
 }
