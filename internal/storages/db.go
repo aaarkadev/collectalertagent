@@ -23,8 +23,8 @@ type DBStorage struct {
 
 var _ repositories.Repo = (*DBStorage)(nil)
 
-const schemaSql = `DROP TABLE IF EXISTS "metrics";
-CREATE TABLE  "metrics" (
+const schemaSql = `
+CREATE TABLE IF NOT EXISTS "metrics" (
     "ID"	varchar(255) NOT NULL,
     "MType" varchar(128) DEFAULT 'gauge' NOT NULL,
     "Delta" bigint,
@@ -32,7 +32,7 @@ CREATE TABLE  "metrics" (
     "Hash" varchar(128) DEFAULT '' NOT NULL,
     PRIMARY KEY ("ID")
 );
-CREATE INDEX "metrics_MType" ON  "metrics" USING btree ("MType");`
+CREATE INDEX IF NOT EXISTS "metrics_MType" ON  "metrics" USING btree ("MType");`
 
 func (repo *DBStorage) Init() bool {
 	repo.mem = MemStorage{}
@@ -64,20 +64,21 @@ func (repo *DBStorage) Init() bool {
 	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
 	defer cancel()
 	if !repo.Config.IsRestore {
-		_, err := repo.DbConn.ExecContext(ctx, schemaSql)
-		if err != nil {
-			repo.Config.DSN = ""
-			return false
-		}
-	} else {
-		_, err := repo.DbConn.ExecContext(ctx, `SELECT * FROM "metrics" LIMIT 1`)
-		if err != nil {
-			fmt.Println("Cannot restore DB. falback to file. ", err)
-			repo.Config.DSN = ""
-			return false
-		}
+		repo.DbConn.ExecContext(ctx, `DROP TABLE IF EXISTS "metrics";`)
 	}
+	_, err := repo.DbConn.ExecContext(ctx, schemaSql)
+	if err != nil {
+		fmt.Println("Cannot load DB shema. falback to file. ", err)
+		repo.Config.DSN = ""
+		return false
+	}
+	_, err = repo.DbConn.ExecContext(ctx, `SELECT * FROM "metrics" LIMIT 1`)
+	if err != nil {
+		fmt.Println("Cannot find DB table. falback to file. ", err)
+		repo.Config.DSN = ""
+		return false
 
+	}
 	repo.loadDB()
 
 	go func() {
