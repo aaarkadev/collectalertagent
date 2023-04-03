@@ -61,6 +61,13 @@ func (repo *DBStorage) Init() bool {
 			repo.Config.DSN = ""
 			return false
 		}
+	} else {
+		_, err := repo.DbConn.ExecContext(ctx, `SELECT * FROM "metrics" LIMIT 1`)
+		if err != nil {
+			fmt.Println("Cannot restore DB. falback to file. ", err)
+			repo.Config.DSN = ""
+			return false
+		}
 	}
 
 	repo.Ping()
