@@ -14,7 +14,7 @@ type Metrics struct {
 	MType  string     `json:"type" db:"MType"`
 	Delta  *int64     `json:"delta,omitempty" db:"Delta,omitempty"`
 	Value  *float64   `json:"value,omitempty" db:"Value,omitempty"`
-	Hash   string     `json:"hash,omitempty" db:"-"`
+	Hash   string     `json:"hash" db:"Hash"`
 	Source DataSource `json:"-" db:"-"`
 }
 
@@ -61,6 +61,7 @@ func (m *Metrics) Init() {
 }
 
 func (m *Metrics) GenHash(key []byte) {
+
 	if len(key) < 1 {
 		return
 	}

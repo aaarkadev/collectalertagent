@@ -146,7 +146,7 @@ func sendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	if err != nil {
 		panic(err)
 	}
-	url := fmt.Sprintf("http://%v/update/", config.SendAddress)
+	url := fmt.Sprintf("http://%v/updates/", config.SendAddress)
 	ctx, cancel := context.WithTimeout(context.Background(), configs.GlobalDefaultTimeout)
 	defer cancel()
 
@@ -199,9 +199,11 @@ func sendMetricsRaw(rep repositories.Repo, config configs.AgentConfig) {
 }
 
 func main() {
+
+	config := configs.InitAgentConfig()
+
 	collectedMetric = storages.MemStorage{}
 	InitAllMetrics(&collectedMetric)
-	config := configs.InitAgentConfig()
 
 	pollTicker := time.NewTicker(config.PollInterval)
 	defer pollTicker.Stop()

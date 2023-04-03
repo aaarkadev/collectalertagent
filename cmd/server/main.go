@@ -20,8 +20,6 @@ func main() {
 	config := configs.InitServerConfig()
 	config.MainCtx = mainCtx
 
-	config.StoreInterval = 0 /*???? iteration11_test.go has -i5m */
-
 	var repo repositories.Repo
 	repo = &storages.DBStorage{Config: config}
 	// repo = repositories.Repo(&storages.DBStorage{Config: config})
@@ -47,6 +45,7 @@ func main() {
 
 	router.Post("/update/{type}/{name}/{value}", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateRaw))
 	router.Post("/update/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateJSON))
+	router.Post("/updates/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdatesJSON))
 
 	router.Get("/value/{type}/{name}", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneRaw))
 	router.Post("/value/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneJSON))

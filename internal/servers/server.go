@@ -3,12 +3,12 @@ package servers
 import (
 	"compress/gzip"
 	"context"
+
 	"io"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
-
 	"syscall"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"

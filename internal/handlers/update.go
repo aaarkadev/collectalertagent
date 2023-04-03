@@ -13,6 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+func HandlerUpdatesJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+	HandlerUpdateJSON(w, r, serverData)
+}
+
 func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	bodyBytes, err := io.ReadAll(r.Body)

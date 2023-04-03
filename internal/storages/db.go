@@ -2,7 +2,7 @@ package storages
 
 import (
 	"context"
-	//"database/sql"
+	// "database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +22,17 @@ type DBStorage struct {
 }
 
 var _ repositories.Repo = (*DBStorage)(nil)
+
+const schemaSql = `DROP TABLE IF EXISTS "metrics";
+CREATE TABLE  "metrics" (
+    "ID"	varchar(255) NOT NULL,
+    "MType" varchar(128) DEFAULT 'gauge' NOT NULL,
+    "Delta" bigint,
+    "Value" double precision,
+    "Hash" varchar(128) DEFAULT '' NOT NULL,
+    PRIMARY KEY ("ID")
+);
+CREATE INDEX "metrics_MType" ON  "metrics" USING btree ("MType");`
 
 func (repo *DBStorage) Init() bool {
 	repo.mem = MemStorage{}
@@ -43,15 +54,6 @@ func (repo *DBStorage) Init() bool {
 	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
 	defer cancel()
 	if !repo.Config.IsRestore {
-		schemaSql := `DROP TABLE IF EXISTS "metrics";
-CREATE TABLE  "metrics" (
-    "ID"	varchar(255) NOT NULL,
-    "MType" varchar(128) DEFAULT 'gauge' NOT NULL,
-    "Delta" bigint,
-    "Value" double precision,
-    PRIMARY KEY ("ID")
-);
-CREATE INDEX "metrics_MType" ON  "metrics" USING btree ("MType");`
 		_, err := repo.DbConn.ExecContext(ctx, schemaSql)
 		if err != nil {
 			repo.Config.DSN = ""
@@ -59,6 +61,7 @@ CREATE INDEX "metrics_MType" ON  "metrics" USING btree ("MType");`
 		}
 	}
 
+	repo.Ping()
 	repo.loadDB()
 
 	go func() {
@@ -83,8 +86,11 @@ func (repo *DBStorage) loadDB() {
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
+	defer cancel()
+
 	oldMetrics := []types.Metrics{}
-	err := repo.DbConn.Select(&oldMetrics, `SELECT * FROM "metrics"`)
+	err := repo.DbConn.SelectContext(ctx, &oldMetrics, `SELECT * FROM "metrics"`)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -92,7 +98,7 @@ func (repo *DBStorage) loadDB() {
 	for _, m := range oldMetrics {
 		m.ID = strings.Trim(m.ID, " 	")
 		m.MType = strings.Trim(m.MType, " 	")
-		//m.Hash = strings.Trim(m.Hash, " 	")
+		m.Hash = strings.Trim(m.Hash, " 	")
 		repo.Set(m)
 	}
 }
@@ -125,26 +131,29 @@ func (repo *DBStorage) StoreDBfunc() {
 	defer cancel()
 
 	var err error
-	_, err = repo.DbConn.ExecContext(ctx, `BEGIN;`)
+	dbTx, err := repo.DbConn.BeginTxx(ctx, nil)
 	if err != nil {
 		fmt.Println("Err trans begin", err)
 		return
 	}
 
-	_, err = repo.DbConn.ExecContext(ctx, `TRUNCATE TABLE "metrics"`)
+	_, err = dbTx.ExecContext(ctx, `TRUNCATE TABLE "metrics"`)
 	if err != nil {
 		fmt.Println("Err trunc", err)
 		return
 	}
 
-	_, err = repo.DbConn.NamedExec(`INSERT INTO "metrics" ("ID", "MType", "Delta", "Value")
-                                                    VALUES (:ID, :MType, :Delta, :Value)`, repo.GetAll())
-	if err != nil {
-		fmt.Println("Err insert", err)
-		return
+	allMetrics := repo.GetAll()
+	if len(allMetrics) > 0 {
+		_, err = dbTx.NamedExecContext(ctx, `INSERT INTO "metrics" ("ID", "MType", "Delta", "Value", "Hash")
+                                                    VALUES (:ID, :MType, :Delta, :Value, :Hash)`, allMetrics)
+		if err != nil {
+			fmt.Println("Err insert", err)
+			return
+		}
 	}
 
-	_, err = repo.DbConn.ExecContext(ctx, `COMMIT;`)
+	err = dbTx.Commit()
 	if err != nil {
 		fmt.Println("Err trans commit", err)
 		return
@@ -152,11 +161,7 @@ func (repo *DBStorage) StoreDBfunc() {
 }
 
 func (repo *DBStorage) FlushDB() {
-	if repo.Config.StoreInterval == 0 {
-		repo.StoreDBfunc()
-		return
-	}
-
+	repo.StoreDBfunc()
 }
 
 func (repo *DBStorage) Ping() error {
