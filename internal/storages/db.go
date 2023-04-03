@@ -2,22 +2,22 @@ package storages
 
 import (
 	"context"
-	// "database/sql"
 	"fmt"
 	"strings"
 	"time"
+
+	"database/sql"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/types"
 	_ "github.com/jackc/pgx/v5/stdlib"
-
 	"github.com/jmoiron/sqlx"
 )
 
 type DBStorage struct {
 	mem    MemStorage
-	Config configs.ServerConfig
+	Config *configs.ServerConfig
 	DbConn *sqlx.DB
 }
 
@@ -38,20 +38,28 @@ func (repo *DBStorage) Init() bool {
 	repo.mem = MemStorage{}
 	repo.mem.Init()
 
-	if len(repo.Config.DSN) > 0 {
-		//		"postgres://dron:dron@localhost:5432/dron"
-		//conn, connErr := sql.Open("pgx", repo.Config.DSN)
-		conn, connErr := sqlx.Open("pgx", repo.Config.DSN)
-		if connErr != nil {
-			repo.Config.DSN = ""
-			return false
-		} else {
-			repo.DbConn = conn
-		}
-	} else {
+	if repo.Config == nil {
+		fmt.Println("empty Config. falback to file.")
+		return false
+	}
+	if len(repo.Config.DSN) <= 0 {
+		repo.Config.DSN = ""
+		fmt.Println("empty Config.DSN falback to file.")
+		return false
+	}
+	conn, connErr := sql.Open("pgx", repo.Config.DSN)
+	if connErr != nil {
+		fmt.Println("Cannot connect to DB. falback to file. ", connErr)
 		repo.Config.DSN = ""
 		return false
 	}
+	connErr = conn.Ping()
+	if connErr != nil {
+		fmt.Println("Cannot ping DB. falback to file. ", connErr)
+		repo.Config.DSN = ""
+		return false
+	}
+	repo.DbConn = sqlx.NewDb(conn, "pgx")
 
 	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
 	defer cancel()
@@ -70,7 +78,6 @@ func (repo *DBStorage) Init() bool {
 		}
 	}
 
-	repo.Ping()
 	repo.loadDB()
 
 	go func() {

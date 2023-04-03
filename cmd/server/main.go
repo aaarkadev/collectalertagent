@@ -21,7 +21,7 @@ func main() {
 	config.MainCtx = mainCtx
 
 	var repo repositories.Repo
-	repo = &storages.DBStorage{Config: config}
+	repo = &storages.DBStorage{Config: &config}
 	// repo = repositories.Repo(&storages.DBStorage{Config: config})
 	isInitSuccess := repo.Init()
 	if !isInitSuccess {
