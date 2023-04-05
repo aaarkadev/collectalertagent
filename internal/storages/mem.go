@@ -8,46 +8,56 @@ import (
 )
 
 type MemStorage struct {
-	metrics []types.Metric
+	metrics []types.Metrics
 }
 
 var _ repositories.Repo = (*MemStorage)(nil)
 
-func (m *MemStorage) Init() bool {
+func (repo *MemStorage) Init() bool {
+	repo.metrics = make([]types.Metrics, 0)
 	return true
 }
 
-func (m *MemStorage) GetAll() []types.Metric {
-	return m.metrics
+func (repo *MemStorage) GetAll() []types.Metrics {
+	return repo.metrics
 }
 
-func (m *MemStorage) Get(k string) (types.Metric, error) {
-	for _, v := range m.metrics {
-		if v.Name == k {
+func (repo *MemStorage) Get(k string) (types.Metrics, error) {
+	for _, v := range repo.metrics {
+		if v.ID == k {
 			return v, nil
 		}
 	}
-	return types.Metric{}, fmt.Errorf("k[%v]: not found in storage", k)
+	return types.Metrics{}, fmt.Errorf("k[%v]: not found in storage", k)
 }
 
-func (m *MemStorage) Set(mset types.Metric) bool {
-
-	_, err := m.Get(mset.Name)
+func (repo *MemStorage) Set(mset types.Metrics) bool {
+	if mset.Delta == nil && mset.Value == nil {
+		return false
+	}
+	_, err := repo.Get(mset.ID)
 
 	if err != nil {
-		newMetricElement, newErr := types.NewMetric(mset.Name, mset.Type, mset.Source)
+		newMetricElement, newErr := types.NewMetric(mset.ID, types.DataType(mset.MType), mset.Source)
 		if newErr == nil {
-			newMetricElement.Set(mset.Val)
-			m.metrics = append(m.metrics, *newMetricElement)
+			newMetricElement.SetMetric(mset)
+			repo.metrics = append(repo.metrics, *newMetricElement)
 		}
 	} else {
-		for i, v := range m.metrics {
-			if v.Name == mset.Name {
-				m.metrics[i].Set(mset.Val)
+		for i, v := range repo.metrics {
+			if v.ID == mset.ID {
+				repo.metrics[i].SetMetric(mset)
 				break
 			}
 		}
 	}
 
 	return true
+}
+
+func (repo *MemStorage) FlushDB() {
+}
+
+func (repo *MemStorage) Shutdown() {
+
 }

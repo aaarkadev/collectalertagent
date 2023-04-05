@@ -1,41 +1,106 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
-	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/servers"
 	"github.com/aaarkadev/collectalertagent/internal/types"
 	"github.com/go-chi/chi/v5"
 )
 
-type UpdateMetricsHandler struct {
-	types.ServerHandlerData
+func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	bodyStr := strings.Trim(string(bodyBytes[:]), " /")
+
+	if err != nil || len(bodyStr) <= 0 {
+		http.Error(w, "BadRequest", http.StatusBadRequest)
+		return
+	}
+
+	if serverData == nil || serverData.Repo == nil {
+		http.Error(w, "Repo fail", http.StatusBadRequest)
+		return
+	}
+
+	updateOneMetric := types.Metrics{}
+	isUpdateOneMetric := false
+	err = json.Unmarshal([]byte(bodyStr), &updateOneMetric)
+	if err == nil {
+
+		if !types.DataType(updateOneMetric.MType).IsValid() {
+			http.Error(w, "DataType invalid", http.StatusBadRequest)
+			return
+		}
+
+		if types.DataType(updateOneMetric.MType) == types.GaugeType && updateOneMetric.Value == nil {
+			http.Error(w, "empty value", http.StatusBadRequest)
+			return
+		}
+		if types.DataType(updateOneMetric.MType) == types.CounterType && updateOneMetric.Delta == nil {
+			http.Error(w, "empty delta", http.StatusBadRequest)
+			return
+		}
+
+		serverData.Repo.Set(updateOneMetric)
+		isUpdateOneMetric = true
+	}
+
+	var txtM []byte
+	if !isUpdateOneMetric {
+		newMetrics := []types.Metrics{}
+		err = json.Unmarshal([]byte(bodyStr), &newMetrics)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		for _, m := range newMetrics {
+			serverData.Repo.Set(m)
+		}
+		newMetrics = serverData.Repo.GetAll()
+		txtM, err = json.Marshal(newMetrics)
+	} else {
+		updateOneMetric, _ = serverData.Repo.Get(updateOneMetric.ID)
+		txtM, err = json.Marshal(updateOneMetric)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	serverData.Repo.FlushDB()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(txtM)
 }
 
-func (hStruct UpdateMetricsHandler) HandlerFunc(w http.ResponseWriter, r *http.Request) {
+func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	httpErr := http.StatusOK
 	typeParam := chi.URLParam(r, "type")
 	nameParam := chi.URLParam(r, "name")
 	valueParam := chi.URLParam(r, "value")
 
-	if typeParam != "gauge" && typeParam != "counter" {
+	if types.DataType(typeParam) != types.GaugeType && types.DataType(typeParam) != types.CounterType {
 		httpErr = http.StatusNotImplemented
 	}
 
 	intV := 0
 	floatV := 0.0
 	var parseErr error
-	if httpErr == http.StatusOK && typeParam == "counter" {
+	if httpErr == http.StatusOK && types.DataType(typeParam) == types.CounterType {
 		if intV, parseErr = strconv.Atoi(valueParam); parseErr != nil {
 			httpErr = http.StatusBadRequest
 		}
 	}
 
-	if httpErr == http.StatusOK && typeParam == "gauge" {
+	if httpErr == http.StatusOK && types.DataType(typeParam) == types.GaugeType {
 		if floatV, parseErr = strconv.ParseFloat(valueParam, 64); parseErr != nil {
 			httpErr = http.StatusBadRequest
 		}
@@ -54,24 +119,34 @@ func (hStruct UpdateMetricsHandler) HandlerFunc(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	repoData, ok := hStruct.Data.(repositories.Repo)
-	if !ok {
-		http.Error(w, "handler data type assertion to Repo fail", http.StatusBadRequest)
+	if serverData == nil || serverData.Repo == nil {
+		http.Error(w, "Repo fail", http.StatusBadRequest)
 		return
 	}
 
-	if typeParam == "gauge" {
-		repoData.Set(types.Metric{Name: nameParam, Type: types.GaugeType, Source: types.OsSource, Val: float64(floatV)})
+	var newM *types.Metrics
+	var newMerr error
+	if types.DataType(typeParam) == types.GaugeType {
+		newM, newMerr = types.NewMetric(nameParam, types.DataType(typeParam), types.OsSource)
 	} else {
-		oldVal, oldValErr := repoData.Get(nameParam)
-		if oldValErr != nil {
-			repoData.Set(types.Metric{Name: nameParam, Type: types.CounterType, Source: types.IncrementSource, Val: int64(intV)})
-		} else {
-			repoData.Set(types.Metric{Name: nameParam, Type: types.CounterType, Source: types.IncrementSource, Val: (oldVal.Val.(int64) + int64(intV))})
-		}
+		newM, newMerr = types.NewMetric(nameParam, types.DataType(typeParam), types.IncrementSource)
+	}
+	if newMerr != nil {
+		panic("NewMetric error")
+	}
+	if types.DataType(typeParam) == types.GaugeType {
+		newM.Set(float64(floatV))
+	} else {
+		newM.Set(int64(intV))
+	}
+	ok := serverData.Repo.Set(*newM)
+	if !ok {
+		panic("error repo set element")
 	}
 
+	serverData.Repo.FlushDB()
+
 	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Ok"))
+
 }

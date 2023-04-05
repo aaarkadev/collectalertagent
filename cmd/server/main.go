@@ -1,37 +1,44 @@
 package main
 
 import (
-	//"fmt"
-	"log"
+	"context"
+	"fmt"
 
-	"net/http"
-
+	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/handlers"
-	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/servers"
 	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/go-chi/chi/v5"
 )
 
-func initRepo(r repositories.Repo) {
-	r.Init()
-}
-
 func main() {
 
-	r := storages.MemStorage{}
-	initRepo(&r)
+	config := configs.InitServerConfig()
+	repo := storages.FileStorage{Config: config}
+	repo.Init()
+	defer func() {
+		repo.Shutdown()
+	}()
+
+	serverData := servers.ServerHandlerData{}
+	serverData.Repo = &repo
 
 	router := chi.NewRouter()
+	router.Use(servers.GzipMiddleware)
+	router.Use(servers.UnGzipMiddleware)
 
-	u := handlers.UpdateMetricsHandler{}
-	u.Data = &r
-	router.Post("/update/{type}/{name}/{value}", u.HandlerFunc)
+	router.Post("/update/{type}/{name}/{value}", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateRaw))
+	router.Post("/update/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateJSON))
 
-	g := handlers.GetMetricsHandler{}
-	g.Data = &r
-	router.Get("/value/{type}/{name}", g.HandlerFuncOne)
-	router.Get("/", g.HandlerFuncAll)
-	//log.Println("server start ")
+	router.Get("/value/{type}/{name}", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneRaw))
+	router.Post("/value/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneJSON))
+	router.Get("/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncAll))
 
-	log.Fatal(http.ListenAndServe("127.0.0.1:8080", router))
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel()
+
+	servers.StartServer(mainCtx, config, router)
+
+	fmt.Println("SERVER END")
+
 }

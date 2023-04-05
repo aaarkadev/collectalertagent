@@ -5,8 +5,10 @@ import (
 )
 
 type Repo interface {
-	Set(v types.Metric) bool
-	Get(k string) (types.Metric, error)
-	GetAll() []types.Metric
+	Set(v types.Metrics) bool
+	Get(k string) (types.Metrics, error)
+	GetAll() []types.Metrics
 	Init() bool
+	Shutdown()
+	FlushDB()
 }
