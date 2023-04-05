@@ -18,12 +18,12 @@ import (
 type DBStorage struct {
 	mem    MemStorage
 	Config *configs.ServerConfig
-	DbConn *sqlx.DB
+	DBConn *sqlx.DB
 }
 
 var _ repositories.Repo = (*DBStorage)(nil)
 
-const schemaSql = `
+const schemaSQL = `
 CREATE TABLE IF NOT EXISTS "metrics" (
     "ID"	varchar(255) NOT NULL,
     "MType" varchar(128) DEFAULT 'gauge' NOT NULL,
@@ -59,20 +59,20 @@ func (repo *DBStorage) Init() bool {
 		repo.Config.DSN = ""
 		return false
 	}
-	repo.DbConn = sqlx.NewDb(conn, "pgx")
+	repo.DBConn = sqlx.NewDb(conn, "pgx")
 
 	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
 	defer cancel()
 	if !repo.Config.IsRestore {
-		repo.DbConn.ExecContext(ctx, `DROP TABLE IF EXISTS "metrics";`)
+		repo.DBConn.ExecContext(ctx, `DROP TABLE IF EXISTS "metrics";`)
 	}
-	_, err := repo.DbConn.ExecContext(ctx, schemaSql)
+	_, err := repo.DBConn.ExecContext(ctx, schemaSQL)
 	if err != nil {
 		fmt.Println("Cannot load DB shema. falback to file. ", err)
 		repo.Config.DSN = ""
 		return false
 	}
-	_, err = repo.DbConn.ExecContext(ctx, `SELECT * FROM "metrics" LIMIT 1`)
+	_, err = repo.DBConn.ExecContext(ctx, `SELECT * FROM "metrics" LIMIT 1`)
 	if err != nil {
 		fmt.Println("Cannot find DB table. falback to file. ", err)
 		repo.Config.DSN = ""
@@ -107,7 +107,7 @@ func (repo *DBStorage) loadDB() {
 	defer cancel()
 
 	oldMetrics := []types.Metrics{}
-	err := repo.DbConn.SelectContext(ctx, &oldMetrics, `SELECT * FROM "metrics"`)
+	err := repo.DBConn.SelectContext(ctx, &oldMetrics, `SELECT * FROM "metrics"`)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -123,7 +123,7 @@ func (repo *DBStorage) loadDB() {
 func (repo *DBStorage) Shutdown() {
 	repo.StoreDBfunc()
 	if len(repo.Config.DSN) > 0 {
-		defer repo.DbConn.Close()
+		defer repo.DBConn.Close()
 	}
 }
 
@@ -148,7 +148,7 @@ func (repo *DBStorage) StoreDBfunc() {
 	defer cancel()
 
 	var err error
-	dbTx, err := repo.DbConn.BeginTxx(ctx, nil)
+	dbTx, err := repo.DBConn.BeginTxx(ctx, nil)
 	if err != nil {
 		fmt.Println("Err trans begin", err)
 		return
@@ -185,5 +185,5 @@ func (repo *DBStorage) Ping() error {
 	if len(repo.Config.DSN) <= 0 {
 		return fmt.Errorf("DSN empty or no connection to DB")
 	}
-	return repo.DbConn.PingContext(repo.Config.MainCtx)
+	return repo.DBConn.PingContext(repo.Config.MainCtx)
 }

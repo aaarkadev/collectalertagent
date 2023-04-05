@@ -137,10 +137,10 @@ func sendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
 	client.Timeout = configs.GlobalDefaultTimeout
 
-	hashedMetrics := []types.Metrics{}
+	//hashedMetrics := []types.Metrics{}
 	for _, mElem := range rep.GetAll() {
 		mElem.GenHash(config.HashKey)
-		hashedMetrics = append(hashedMetrics, mElem)
+		//hashedMetrics = append(hashedMetrics, mElem)
 	}
 
 	txtM, err := json.Marshal(rep.GetAll())

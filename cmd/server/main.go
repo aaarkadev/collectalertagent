@@ -25,9 +25,13 @@ func main() {
 	// repo = repositories.Repo(&storages.DBStorage{Config: config})
 	isInitSuccess := repo.Init()
 	if !isInitSuccess {
+		fmt.Println("Init DB repo failed. falback to file. ")
 		repo = &storages.FileStorage{Config: config}
 		// repo = (*storages.FileStorage)(&storages.FileStorage{Config: config})
 		isInitSuccess = repo.Init()
+		if !isInitSuccess {
+			fmt.Println("Init File repo failed. falback to mem. ")
+		}
 	}
 	defer func() {
 		repo.Shutdown()
