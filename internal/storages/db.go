@@ -160,7 +160,8 @@ func (repo *DBStorage) StoreDBfunc() {
 		return
 	}
 
-	allMetrics := repo.GetAll()
+	allMetrics := []types.Metrics{}
+	allMetrics = append(allMetrics, repo.GetAll()...)
 	if len(allMetrics) > 0 {
 		_, err = dbTx.NamedExecContext(ctx, `INSERT INTO "metrics" ("ID", "MType", "Delta", "Value", "Hash")
                                                     VALUES (:ID, :MType, :Delta, :Value, :Hash)`, allMetrics)

@@ -13,6 +13,7 @@ import (
 
 	"reflect"
 	"runtime"
+
 	"time"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
@@ -29,7 +30,7 @@ func updateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
 	switch m.Source {
 	case types.IncrementSource:
 		{
-			m.Set((*m.Delta + int64(1)))
+			m.Set((m.GetDelta() + int64(1)))
 		}
 	case types.RandSource:
 		{
@@ -67,7 +68,10 @@ func UpdatelMetrics(rep repositories.Repo) bool {
 		return false
 	}
 
-	for _, mElem := range rep.GetAll() {
+	updateM := []types.Metrics{}
+	updateM = append(updateM, rep.GetAll()...)
+
+	for _, mElem := range updateM {
 		mElem = updateOne(mElem, reflectVal)
 		ok := rep.Set(mElem)
 		if !ok {
@@ -132,11 +136,14 @@ func SendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
 	client.Timeout = configs.GlobalDefaultTimeout
 
-	for _, mElem := range rep.GetAll() {
+	sendM := []types.Metrics{}
+	sendM = append(sendM, rep.GetAll()...)
+	for _, mElem := range sendM {
 		mElem.GenHash(config.HashKey)
 	}
 
-	txtM, err := json.Marshal(rep.GetAll())
+	txtM, err := json.Marshal(sendM)
+
 	if err != nil {
 		panic(err)
 	}
@@ -166,7 +173,10 @@ func sendMetricsRaw(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
 	client.Timeout = configs.GlobalDefaultTimeout
 
-	for _, v := range rep.GetAll() {
+	sendM := []types.Metrics{}
+	sendM = append(sendM, rep.GetAll()...)
+
+	for _, v := range sendM {
 		url := fmt.Sprintf("http://%v/update/%v/%v/%v", config.SendAddress, v.MType, v.ID, v.Get())
 
 		ctx, cancel := context.WithTimeout(context.Background(), configs.GlobalDefaultTimeout)
@@ -214,4 +224,5 @@ func StartAgent(rep repositories.Repo, config configs.AgentConfig) {
 			}
 		}
 	}
+
 }

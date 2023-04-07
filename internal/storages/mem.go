@@ -32,7 +32,7 @@ func (repo *MemStorage) Get(k string) (types.Metrics, error) {
 }
 
 func (repo *MemStorage) Set(mset types.Metrics) bool {
-	if mset.Delta == nil && mset.Value == nil {
+	if !mset.IsDelta() && !mset.IsValue() {
 		return false
 	}
 	_, err := repo.Get(mset.ID)

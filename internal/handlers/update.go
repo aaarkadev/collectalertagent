@@ -36,21 +36,25 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 	isUpdateOneMetric := false
 	err = json.Unmarshal([]byte(bodyStr), &updateOneMetric)
 	if err == nil {
-
 		if !types.DataType(updateOneMetric.MType).IsValid() {
 			http.Error(w, "DataType invalid", http.StatusBadRequest)
 			return
 		}
 
-		if types.DataType(updateOneMetric.MType) == types.GaugeType && updateOneMetric.Value == nil {
+		if types.DataType(updateOneMetric.MType) == types.GaugeType && !updateOneMetric.IsValue() {
 			http.Error(w, "empty value", http.StatusBadRequest)
 			return
 		}
-		if types.DataType(updateOneMetric.MType) == types.CounterType && updateOneMetric.Delta == nil {
+		if types.DataType(updateOneMetric.MType) == types.CounterType && !updateOneMetric.IsDelta() {
 			http.Error(w, "empty delta", http.StatusBadRequest)
 			return
 		}
-
+		tmpHash := updateOneMetric
+		tmpHash.GenHash(serverData.Config.HashKey)
+		if len(updateOneMetric.Hash) > 0 && updateOneMetric.Hash != tmpHash.Hash {
+			http.Error(w, "wrong hash", http.StatusBadRequest)
+			return
+		}
 		serverData.Repo.Set(updateOneMetric)
 		isUpdateOneMetric = true
 	}
@@ -63,11 +67,20 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		for i, m := range newMetrics {
+		for _, m := range newMetrics {
+			tmpHash := m
+			tmpHash.GenHash(serverData.Config.HashKey)
+			if len(m.Hash) > 0 && m.Hash != tmpHash.Hash {
+				fmt.Println("wrong hash")
+				continue
+			}
 			serverData.Repo.Set(m)
+		}
+		hashedMetrics := []types.Metrics{}
+		hashedMetrics = append(hashedMetrics, serverData.Repo.GetAll()...)
+		for i, _ := range newMetrics {
 			newMetrics[i].GenHash(serverData.Config.HashKey)
 		}
-		newMetrics = serverData.Repo.GetAll()
 		txtM, err = json.Marshal(newMetrics)
 	} else {
 		updateOneMetric, _ = serverData.Repo.Get(updateOneMetric.ID)

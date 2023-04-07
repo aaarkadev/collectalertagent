@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
+	//"strings"
 )
 
 type DataType string
@@ -69,9 +70,13 @@ func (m *Metrics) GenHash(key []byte) {
 	var strForHash string
 	switch m.MType {
 	case "counter":
-		strForHash = fmt.Sprintf("%s:%s:%d", m.ID, m.MType, *m.Delta)
+		{
+			strForHash = fmt.Sprintf("%s:%s:%d", m.ID, m.MType, m.GetDelta())
+		}
 	case "gauge":
-		strForHash = fmt.Sprintf("%s:%s:%f", m.ID, m.MType, *m.Value)
+		{
+			strForHash = fmt.Sprintf("%s:%s:%f", m.ID, m.MType, m.GetValue())
+		}
 	}
 
 	h := hmac.New(sha256.New, key)
@@ -87,15 +92,34 @@ func (m *Metrics) Get() string {
 	switch DataType(m.MType) {
 	case CounterType:
 		{
-			s = fmt.Sprintf("%d", *m.Delta)
+			s = fmt.Sprintf("%d", m.GetDelta())
 		}
 	default:
 		{
-			s = fmt.Sprintf("%.3f", *m.Value)
+			s = fmt.Sprintf("%.3f", m.GetValue())
+			/*r := []rune(strings.TrimRight(s, "0"))
+			if r[len(r)-1] == '.' {
+				r = append(r, '0')
+			}
+			s = string(r)*/
 		}
 	}
 
 	return s
+}
+
+func (m *Metrics) GetDelta() int64 {
+	return *m.Delta
+}
+func (m *Metrics) GetValue() float64 {
+	return *m.Value
+}
+
+func (m *Metrics) IsDelta() bool {
+	return m.Delta != nil
+}
+func (m *Metrics) IsValue() bool {
+	return m.Value != nil
 }
 
 func (m *Metrics) SetMetric(newM Metrics) bool {
@@ -105,13 +129,14 @@ func (m *Metrics) SetMetric(newM Metrics) bool {
 	switch DataType(m.MType) {
 	case CounterType:
 		{
-			*m.Delta += *newM.Delta
+			m.Set((m.GetDelta() + newM.GetDelta()))
 		}
 	default:
 		{
-			m.Value = newM.Value
+			m.Set(newM.GetValue())
 		}
 	}
+	//m.Hash = newM.Hash
 	return true
 }
 

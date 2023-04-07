@@ -34,7 +34,8 @@ func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.
 	}
 	repoData := serverData.Repo
 
-	metrics := repoData.GetAll()
+	metrics := []types.Metrics{}
+	metrics = append(metrics, repoData.GetAll()...)
 	tableStr := []string{}
 	for _, v := range metrics {
 		tableStr = append(tableStr, "<tr><td>", v.ID, "</td><td>", v.Get(), "</td></tr>")
@@ -71,16 +72,8 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	oldMetrics := repoData.GetAll()
-	isFound := false
-	for _, m := range oldMetrics {
-		if m.ID == metricVal.ID {
-			metricVal = m
-			isFound = true
-			break
-		}
-	}
-	if !isFound {
+	metricVal, foundErr := repoData.Get(metricVal.ID)
+	if foundErr != nil {
 		http.Error(w, "Err", http.StatusNotFound)
 		return
 	}
