@@ -78,10 +78,10 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 		}
 		hashedMetrics := []types.Metrics{}
 		hashedMetrics = append(hashedMetrics, serverData.Repo.GetAll()...)
-		for i, _ := range newMetrics {
-			newMetrics[i].GenHash(serverData.Config.HashKey)
+		for i, _ := range hashedMetrics {
+			hashedMetrics[i].GenHash(serverData.Config.HashKey)
 		}
-		txtM, err = json.Marshal(newMetrics)
+		txtM, err = json.Marshal(hashedMetrics)
 	} else {
 		updateOneMetric, _ = serverData.Repo.Get(updateOneMetric.ID)
 		updateOneMetric.GenHash(serverData.Config.HashKey)
