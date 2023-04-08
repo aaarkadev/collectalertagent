@@ -19,11 +19,14 @@ func (repo *MemStorage) Init() bool {
 }
 
 func (repo *MemStorage) GetAll() []types.Metrics {
-	return repo.metrics
+	allMetrics := []types.Metrics{}
+	allMetrics = append(allMetrics, repo.metrics...)
+	return allMetrics
 }
 
 func (repo *MemStorage) Get(k string) (types.Metrics, error) {
-	for _, v := range repo.metrics {
+	allMetrics := repo.GetAll()
+	for _, v := range allMetrics {
 		if v.ID == k {
 			return v, nil
 		}
@@ -31,28 +34,37 @@ func (repo *MemStorage) Get(k string) (types.Metrics, error) {
 	return types.Metrics{}, fmt.Errorf("k[%v]: not found in storage", k)
 }
 
-func (repo *MemStorage) Set(mset types.Metrics) bool {
-	if !mset.IsDelta() && !mset.IsValue() {
-		return false
-	}
+func (repo *MemStorage) Set(mset types.Metrics) error {
+
 	_, err := repo.Get(mset.ID)
 
+	allMetrics := repo.GetAll()
+
 	if err != nil {
-		newMetricElement, newErr := types.NewMetric(mset.ID, types.DataType(mset.MType), mset.Source)
-		if newErr == nil {
-			newMetricElement.SetMetric(mset)
-			repo.metrics = append(repo.metrics, *newMetricElement)
+		newMetricElement, errNew := types.NewMetric(mset.ID, types.DataType(mset.MType), mset.Source)
+		err = errNew
+		if err == nil {
+			err = newMetricElement.SetMetric(mset)
+			if err == nil {
+				allMetrics = append(allMetrics, *newMetricElement)
+			}
+		}
+		if err != nil {
+			err = types.NewTimeError(fmt.Errorf("MemStorage.Set(): fail: %w", err))
 		}
 	} else {
-		for i, v := range repo.metrics {
+		for i, v := range allMetrics {
 			if v.ID == mset.ID {
-				repo.metrics[i].SetMetric(mset)
+				err = allMetrics[i].SetMetric(mset)
+				if err != nil {
+					err = types.NewTimeError(fmt.Errorf("MemStorage.Set(): fail: %w", err))
+				}
 				break
 			}
 		}
 	}
-
-	return true
+	repo.metrics = allMetrics
+	return err
 }
 
 func (repo *MemStorage) FlushDB() {

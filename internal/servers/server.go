@@ -3,8 +3,9 @@ package servers
 import (
 	"compress/gzip"
 	"context"
-
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/types"
 )
 
 type ServerHandlerData struct {
@@ -77,6 +79,7 @@ func UnGzipMiddleware(next http.Handler) http.Handler {
 		gz, err := gzip.NewReader(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			log.Panicln(types.NewTimeError(fmt.Errorf("server.UnGzipMiddleware(): fail: %w", err)))
 			return
 		}
 		defer gz.Close()
@@ -98,6 +101,7 @@ func GzipMiddleware(next http.Handler) http.Handler {
 		gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			log.Panicln(types.NewTimeError(fmt.Errorf("server.GzipMiddleware(): fail: %w", err)))
 			return
 		}
 
@@ -118,7 +122,7 @@ func StartServer(mainCtx context.Context, config configs.ServerConfig, router ht
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
+			log.Panicln(types.NewTimeError(fmt.Errorf("server.StartServer(): fail: %w", err)))
 		}
 	}()
 
@@ -128,7 +132,7 @@ func StartServer(mainCtx context.Context, config configs.ServerConfig, router ht
 	defer shutdownCtxCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		panic(err)
+		log.Panicln(types.NewTimeError(fmt.Errorf("server.StartServer(): fail: %w", err)))
 	}
 
 	return server

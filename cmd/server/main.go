@@ -3,16 +3,26 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/handlers"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/servers"
 	"github.com/aaarkadev/collectalertagent/internal/storages"
+	"github.com/aaarkadev/collectalertagent/internal/types"
 	"github.com/go-chi/chi/v5"
 )
 
 func main() {
+
+	f, err := os.OpenFile("/home/dron/go/src/dron/collectalertagent/log.sever.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+	log.SetOutput(f)
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel()
@@ -24,12 +34,11 @@ func main() {
 	repo = &storages.DBStorage{Config: &config}
 	isInitSuccess := repo.Init()
 	if !isInitSuccess {
-		fmt.Println("Init DB repo failed. falback to file. ")
-
+		log.Println(types.NewTimeError(fmt.Errorf("Init DB repo failed. falback to file.")))
 		repo = &storages.FileStorage{Config: config}
 		isInitSuccess = repo.Init()
 		if !isInitSuccess {
-			fmt.Println("Init File repo failed. falback to mem. ")
+			log.Println(types.NewTimeError(fmt.Errorf("Init File repo failed. falback to mem.")))
 		}
 	}
 
@@ -56,6 +65,5 @@ func main() {
 
 	servers.StartServer(mainCtx, config, router)
 
-	fmt.Println("SERVER END")
-
+	log.Println(types.NewTimeError(fmt.Errorf("SERVER END")))
 }

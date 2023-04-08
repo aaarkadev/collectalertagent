@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
+	"time"
 	//"strings"
 )
 
@@ -29,6 +30,22 @@ const (
 	IncrementSource
 	RandSource
 )
+
+type TimeError struct {
+	Time time.Time
+	Err  error
+}
+
+func (te *TimeError) Error() string {
+	return fmt.Sprintf("%v %v", te.Time.Format(`2006/01/02 15:04:05`), te.Err)
+}
+
+func NewTimeError(err error) error {
+	return &TimeError{
+		Time: time.Now(),
+		Err:  err,
+	}
+}
 
 func (s DataType) IsValid() bool {
 	switch s {
@@ -122,25 +139,34 @@ func (m *Metrics) IsValue() bool {
 	return m.Value != nil
 }
 
-func (m *Metrics) SetMetric(newM Metrics) bool {
+func (m *Metrics) SetMetric(newM Metrics) error {
 	if m.MType != newM.MType {
-		return false
+		return NewTimeError(fmt.Errorf("Metric.SetMetric(): fail: type[%v]!=[%v]", m.MType, newM.MType))
+	}
+	if !newM.IsDelta() && !newM.IsValue() {
+		return NewTimeError(fmt.Errorf("Metric.SetMetric(): fail: empty Delta and Value"))
 	}
 	switch DataType(m.MType) {
 	case CounterType:
 		{
-			m.Set((m.GetDelta() + newM.GetDelta()))
+			err := m.Set((m.GetDelta() + newM.GetDelta()))
+			if err != nil {
+				return NewTimeError(fmt.Errorf("Metric.SetMetric(): fail: %w", err))
+			}
 		}
 	default:
 		{
-			m.Set(newM.GetValue())
+			err := m.Set(newM.GetValue())
+			if err != nil {
+				return NewTimeError(fmt.Errorf("Metric.SetMetric(): fail: %w", err))
+			}
 		}
 	}
 	//m.Hash = newM.Hash
-	return true
+	return nil
 }
 
-func (m *Metrics) Set(val interface{}) bool {
+func (m *Metrics) Set(val interface{}) error {
 
 	switch DataType(m.MType) {
 	case CounterType:
@@ -149,7 +175,7 @@ func (m *Metrics) Set(val interface{}) bool {
 			if ok {
 				*m.Delta = v
 			} else {
-				return false
+				return NewTimeError(fmt.Errorf("Metric.Set(%v): fail: type[%v]", val, m.MType))
 			}
 		}
 	default:
@@ -158,19 +184,20 @@ func (m *Metrics) Set(val interface{}) bool {
 			if ok {
 				*m.Value = v
 			} else {
-				return false
+				return NewTimeError(fmt.Errorf("Metric.Set(%v): fail: type[%v]", val, m.MType))
 			}
 		}
 	}
-	return true
+	return nil
 }
 
 func NewMetric(name string, typ DataType, source DataSource) (*Metrics, error) {
 	if !typ.IsValid() {
-		return &Metrics{}, fmt.Errorf("DataType[%v]: invalid", typ)
+		return &Metrics{}, NewTimeError(fmt.Errorf("DataType[%v]: invalid", typ))
+
 	}
 	if !source.IsValid() {
-		return &Metrics{}, fmt.Errorf("DataSource[%v]: invalid", source)
+		return &Metrics{}, NewTimeError(fmt.Errorf("DataSource[%v]: invalid", source))
 	}
 
 	m := &Metrics{

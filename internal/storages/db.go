@@ -2,11 +2,11 @@ package storages
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 	"time"
-
-	"database/sql"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
@@ -39,23 +39,23 @@ func (repo *DBStorage) Init() bool {
 	repo.mem.Init()
 
 	if repo.Config == nil {
-		fmt.Println("empty Config. falback to file.")
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): empty Config. falback to file.")))
 		return false
 	}
 	if len(repo.Config.DSN) <= 0 {
 		repo.Config.DSN = ""
-		fmt.Println("empty Config.DSN falback to file.")
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): empty Config.DSN falback to file.")))
 		return false
 	}
 	conn, connErr := sql.Open("pgx", repo.Config.DSN)
 	if connErr != nil {
-		fmt.Println("Cannot connect to DB. falback to file. ", connErr)
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): Cannot connect to DB. falback to file. fail: %w", connErr)))
 		repo.Config.DSN = ""
 		return false
 	}
 	connErr = conn.Ping()
 	if connErr != nil {
-		fmt.Println("Cannot ping DB. falback to file. ", connErr)
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): Cannot ping DB. falback to file. fail: %w", connErr)))
 		repo.Config.DSN = ""
 		return false
 	}
@@ -74,7 +74,7 @@ func (repo *DBStorage) Init() bool {
 	}
 	_, err = repo.DBConn.ExecContext(ctx, `SELECT * FROM "metrics" LIMIT 1`)
 	if err != nil {
-		fmt.Println("Cannot find DB table. falback to file. ", err)
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): Cannot find DB table. falback to file. fail: %w", err)))
 		repo.Config.DSN = ""
 		return false
 
@@ -109,14 +109,17 @@ func (repo *DBStorage) loadDB() {
 	oldMetrics := []types.Metrics{}
 	err := repo.DBConn.SelectContext(ctx, &oldMetrics, `SELECT * FROM "metrics"`)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.loadDB(): empty table. fail: %w", err)))
 		return
 	}
 	for _, m := range oldMetrics {
 		m.ID = strings.Trim(m.ID, " 	")
 		m.MType = strings.Trim(m.MType, " 	")
 		m.Hash = strings.Trim(m.Hash, " 	")
-		repo.Set(m)
+		err := repo.Set(m)
+		if err != nil {
+			log.Fatalln(types.NewTimeError(fmt.Errorf("DBStorage.loadDB(): fail: %w", err)))
+		}
 	}
 }
 
@@ -128,14 +131,14 @@ func (repo *DBStorage) Shutdown() {
 }
 
 func (repo *DBStorage) GetAll() []types.Metrics {
-	return repo.mem.metrics
+	return repo.mem.GetAll()
 }
 
 func (repo *DBStorage) Get(k string) (types.Metrics, error) {
 	return repo.mem.Get(k)
 }
 
-func (repo *DBStorage) Set(mset types.Metrics) bool {
+func (repo *DBStorage) Set(mset types.Metrics) error {
 	return repo.mem.Set(mset)
 }
 
@@ -150,30 +153,29 @@ func (repo *DBStorage) StoreDBfunc() {
 	var err error
 	dbTx, err := repo.DBConn.BeginTxx(ctx, nil)
 	if err != nil {
-		fmt.Println("Err trans begin", err)
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.StoreDBfunc(): transaction begin fail: %w", err)))
 		return
 	}
 
 	_, err = dbTx.ExecContext(ctx, `TRUNCATE TABLE "metrics"`)
 	if err != nil {
-		fmt.Println("Err trunc", err)
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.StoreDBfunc(): truncate table fail: %w", err)))
 		return
 	}
 
-	allMetrics := []types.Metrics{}
-	allMetrics = append(allMetrics, repo.GetAll()...)
+	allMetrics := repo.GetAll()
 	if len(allMetrics) > 0 {
 		_, err = dbTx.NamedExecContext(ctx, `INSERT INTO "metrics" ("ID", "MType", "Delta", "Value", "Hash")
                                                     VALUES (:ID, :MType, :Delta, :Value, :Hash)`, allMetrics)
 		if err != nil {
-			fmt.Println("Err insert", err)
+			log.Println(types.NewTimeError(fmt.Errorf("DBStorage.StoreDBfunc(): insert into table fail: %w", err)))
 			return
 		}
 	}
 
 	err = dbTx.Commit()
 	if err != nil {
-		fmt.Println("Err trans commit", err)
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.StoreDBfunc(): transaction commit fail: %w", err)))
 		return
 	}
 }
@@ -184,7 +186,9 @@ func (repo *DBStorage) FlushDB() {
 
 func (repo *DBStorage) Ping() error {
 	if len(repo.Config.DSN) <= 0 {
-		return fmt.Errorf("DSN empty or no connection to DB")
+		err := types.NewTimeError(fmt.Errorf("DBStorage.Ping(): DSN empty or no connection to DB"))
+		log.Println(err)
+		return err
 	}
 	return repo.DBConn.PingContext(repo.Config.MainCtx)
 }

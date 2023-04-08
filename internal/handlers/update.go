@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,12 +24,16 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 	bodyStr := strings.Trim(string(bodyBytes[:]), " /")
 
 	if err != nil || len(bodyStr) <= 0 {
-		http.Error(w, "BadRequest", http.StatusBadRequest)
+		errStr := "BadRequest. empty body"
+		http.Error(w, errStr, http.StatusBadRequest)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): %v", errStr)))
 		return
 	}
 
 	if serverData == nil || serverData.Repo == nil {
-		http.Error(w, "Repo fail", http.StatusBadRequest)
+		repoErr := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): Repo fail"))
+		http.Error(w, repoErr.Error(), http.StatusBadRequest)
+		log.Fatalln(repoErr)
 		return
 	}
 
@@ -37,22 +42,30 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 	err = json.Unmarshal([]byte(bodyStr), &updateOneMetric)
 	if err == nil {
 		if !types.DataType(updateOneMetric.MType).IsValid() {
-			http.Error(w, "DataType invalid", http.StatusBadRequest)
+			errStr := "DataType invalid"
+			http.Error(w, errStr, http.StatusBadRequest)
+			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): %v", errStr)))
 			return
 		}
 
 		if types.DataType(updateOneMetric.MType) == types.GaugeType && !updateOneMetric.IsValue() {
-			http.Error(w, "empty value", http.StatusBadRequest)
+			errStr := "empty value"
+			http.Error(w, errStr, http.StatusBadRequest)
+			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): %v", errStr)))
 			return
 		}
 		if types.DataType(updateOneMetric.MType) == types.CounterType && !updateOneMetric.IsDelta() {
-			http.Error(w, "empty delta", http.StatusBadRequest)
+			errStr := "empty delta"
+			http.Error(w, errStr, http.StatusBadRequest)
+			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): %v", errStr)))
 			return
 		}
 		tmpHash := updateOneMetric
 		tmpHash.GenHash(serverData.Config.HashKey)
 		if len(updateOneMetric.Hash) > 0 && updateOneMetric.Hash != tmpHash.Hash {
-			http.Error(w, "wrong hash", http.StatusBadRequest)
+			errStr := "wrong hash"
+			http.Error(w, errStr, http.StatusBadRequest)
+			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): %v", errStr)))
 			return
 		}
 		serverData.Repo.Set(updateOneMetric)
@@ -65,19 +78,25 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 		err = json.Unmarshal([]byte(bodyStr), &newMetrics)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): fail: %w", err)))
 			return
 		}
 		for _, m := range newMetrics {
 			tmpHash := m
 			tmpHash.GenHash(serverData.Config.HashKey)
 			if len(m.Hash) > 0 && m.Hash != tmpHash.Hash {
-				fmt.Println("wrong hash")
+				errStr := "wrong hash"
+				log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): %v", errStr)))
 				continue
 			}
-			serverData.Repo.Set(m)
+			err := serverData.Repo.Set(m)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): fail: %w", err)))
+				return
+			}
 		}
-		hashedMetrics := []types.Metrics{}
-		hashedMetrics = append(hashedMetrics, serverData.Repo.GetAll()...)
+		hashedMetrics := serverData.Repo.GetAll()
 		for i, _ := range hashedMetrics {
 			hashedMetrics[i].GenHash(serverData.Config.HashKey)
 		}
@@ -90,6 +109,7 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(): fail: %w", err)))
 		return
 	}
 
@@ -126,20 +146,23 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 	}
 
 	if httpErr != http.StatusOK {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(httpErr)
-		fmt.Fprintln(w, "Err")
+		errStr := "wrong type or err convert str to val"
+		http.Error(w, errStr, httpErr)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateRaw(): fail: %v", errStr)))
 		return
 	}
 
 	_, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println(err)
 		return
 	}
 
 	if serverData == nil || serverData.Repo == nil {
-		http.Error(w, "Repo fail", http.StatusBadRequest)
+		repoErr := types.NewTimeError(fmt.Errorf("HandlerUpdateRaw(): Repo fail"))
+		http.Error(w, repoErr.Error(), http.StatusBadRequest)
+		log.Fatalln(repoErr)
 		return
 	}
 
@@ -151,16 +174,25 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 		newM, newMerr = types.NewMetric(nameParam, types.DataType(typeParam), types.IncrementSource)
 	}
 	if newMerr != nil {
-		panic("NewMetric error")
+		http.Error(w, newMerr.Error(), http.StatusBadRequest)
+		log.Println(newMerr)
+		return
 	}
 	if types.DataType(typeParam) == types.GaugeType {
-		newM.Set(float64(floatV))
+		err = newM.Set(float64(floatV))
 	} else {
-		newM.Set(int64(intV))
+		err = newM.Set(int64(intV))
 	}
-	ok := serverData.Repo.Set(*newM)
-	if !ok {
-		panic("error repo set element")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println(err)
+		return
+	}
+	err = serverData.Repo.Set(*newM)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println(err)
+		return
 	}
 
 	serverData.Repo.FlushDB()

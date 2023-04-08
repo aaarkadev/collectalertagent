@@ -26,16 +26,22 @@ func numToFloat[T constraints.Integer | constraints.Float](a T) float64 {
 	return float64(a)
 }
 
-func updateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
+func updateOne(m types.Metrics, statStructReflect reflect.Value) (types.Metrics, error) {
 	switch m.Source {
 	case types.IncrementSource:
 		{
-			m.Set((m.GetDelta() + int64(1)))
+			err := m.Set((m.GetDelta() + int64(1)))
+			if err != nil {
+				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail1: %w", err))
+			}
 		}
 	case types.RandSource:
 		{
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			m.Set(r.Float64())
+			err := m.Set(r.Float64())
+			if err != nil {
+				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail2: %w", err))
+			}
 		}
 	default:
 		{
@@ -49,12 +55,17 @@ func updateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
 				} else {
 					floatVal = numToFloat(structFieldVal.Int())
 				}
-				m.Set(float64(floatVal))
+				err := m.Set(float64(floatVal))
+				if err != nil {
+					return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail2: %w", err))
+				}
+			} else {
+				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): statStructReflect.Value invalid"))
 			}
 		}
 	}
 
-	return m
+	return m, nil
 }
 
 func UpdatelMetrics(rep repositories.Repo) bool {
@@ -68,14 +79,14 @@ func UpdatelMetrics(rep repositories.Repo) bool {
 		return false
 	}
 
-	updateM := []types.Metrics{}
-	updateM = append(updateM, rep.GetAll()...)
-
-	for _, mElem := range updateM {
-		mElem = updateOne(mElem, reflectVal)
-		ok := rep.Set(mElem)
-		if !ok {
-			log.Fatal("error repo set element")
+	for _, mElem := range rep.GetAll() {
+		mElem, err := updateOne(mElem, reflectVal)
+		if err != nil {
+			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.UpdatelMetrics(): fail: %w", err)))
+		}
+		err = rep.Set(mElem)
+		if err != nil {
+			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.UpdatelMetrics(): fail: %w", err)))
 		}
 	}
 	return true
@@ -122,11 +133,11 @@ func InitAllMetrics(rep repositories.Repo) {
 	for _, v := range initVars {
 		newM, err := types.NewMetric(v.Name, v.Type, v.Source)
 		if err != nil {
-			log.Fatal("NewMetric error")
+			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.InitAllMetrics(): fail1: %w", err)))
 		}
-		ok := rep.Set(*newM)
-		if !ok {
-			log.Fatal("error repo set element")
+		err = rep.Set(*newM)
+		if err != nil {
+			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.InitAllMetrics(): fail2: %w", err)))
 		}
 	}
 
@@ -136,8 +147,7 @@ func SendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
 	client.Timeout = configs.GlobalDefaultTimeout
 
-	sendM := []types.Metrics{}
-	sendM = append(sendM, rep.GetAll()...)
+	sendM := rep.GetAll()
 	for _, mElem := range sendM {
 		mElem.GenHash(config.HashKey)
 	}
@@ -145,7 +155,7 @@ func SendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	txtM, err := json.Marshal(sendM)
 
 	if err != nil {
-		panic(err)
+		log.Fatalln(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): fail: %w", err)))
 	}
 	url := fmt.Sprintf("http://%v/updates/", config.SendAddress)
 	ctx, cancel := context.WithTimeout(context.Background(), configs.GlobalDefaultTimeout)
@@ -153,30 +163,31 @@ func SendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 
 	req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(txtM))
 	if rqErr != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: %w", err)))
 		return
 	}
 	req.Header.Set("Content-Type", "Content-Type: application/json")
 
 	response, doErr := client.Do(req)
 	if doErr != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: %w", doErr)))
 		return
 	}
 
 	_, ioErr := io.Copy(io.Discard, response.Body)
+	defer response.Body.Close()
 	if ioErr != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: %w", ioErr)))
 		return
 	}
-	response.Body.Close()
+
 }
 
 func sendMetricsRaw(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
 	client.Timeout = configs.GlobalDefaultTimeout
 
-	sendM := []types.Metrics{}
-	sendM = append(sendM, rep.GetAll()...)
-
-	for _, v := range sendM {
+	for _, v := range rep.GetAll() {
 		url := fmt.Sprintf("http://%v/update/%v/%v/%v", config.SendAddress, v.MType, v.ID, v.Get())
 
 		ctx, cancel := context.WithTimeout(context.Background(), configs.GlobalDefaultTimeout)
@@ -184,21 +195,24 @@ func sendMetricsRaw(rep repositories.Repo, config configs.AgentConfig) {
 
 		req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 		if rqErr != nil {
+			log.Println(types.NewTimeError(fmt.Errorf("agent.sendMetricsRaw(): warn: %w", rqErr)))
 			continue
 		}
 		req.Header.Set("Content-Type", "Content-Type: text/plain")
 
 		response, doErr := client.Do(req)
 		if doErr != nil {
+			log.Println(types.NewTimeError(fmt.Errorf("agent.sendMetricsRaw(): warn: %w", doErr)))
 			continue
 		}
 
 		_, ioErr := io.Copy(io.Discard, response.Body)
 		if ioErr != nil {
+			log.Println(types.NewTimeError(fmt.Errorf("agent.sendMetricsRaw(): warn: %w", ioErr)))
+			response.Body.Close()
 			continue
 		}
 		response.Body.Close()
-
 	}
 }
 

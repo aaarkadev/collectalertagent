@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
-
-	"encoding/json"
 	"strings"
 
 	"github.com/aaarkadev/collectalertagent/internal/servers"
@@ -25,19 +25,20 @@ func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.
 	_, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println(err)
 		return
 	}
 
 	if serverData == nil || serverData.Repo == nil {
-		http.Error(w, "Repo fail", http.StatusBadRequest)
+		repoErr := types.NewTimeError(fmt.Errorf("HandlerFuncAll(): Repo fail"))
+		http.Error(w, repoErr.Error(), http.StatusBadRequest)
+		log.Fatalln(repoErr)
 		return
 	}
 	repoData := serverData.Repo
 
-	metrics := []types.Metrics{}
-	metrics = append(metrics, repoData.GetAll()...)
 	tableStr := []string{}
-	for _, v := range metrics {
+	for _, v := range repoData.GetAll() {
 		tableStr = append(tableStr, "<tr><td>", v.ID, "</td><td>", v.Get(), "</td></tr>")
 	}
 
@@ -48,7 +49,9 @@ func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.
 
 func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 	if r.Header.Get("Content-Type") != "application/json" {
-		http.Error(w, "wrong Content-Type!", http.StatusBadRequest)
+		errStr := "wrong Content-Type"
+		http.Error(w, errStr, http.StatusBadRequest)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneJSON(): %v", errStr)))
 		return
 	}
 
@@ -56,12 +59,16 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 
 	bodyStr := strings.Trim(string(bodyBytes[:]), " /")
 	if err != nil || len(bodyStr) <= 0 {
-		http.Error(w, "BadRequest", http.StatusBadRequest)
+		errStr := "BadRequest. empty body"
+		http.Error(w, errStr, http.StatusBadRequest)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneJSON(): %v", errStr)))
 		return
 	}
 
 	if serverData == nil || serverData.Repo == nil {
-		http.Error(w, "Repo fail", http.StatusBadRequest)
+		repoErr := types.NewTimeError(fmt.Errorf("HandlerFuncOneJSON(): Repo fail"))
+		http.Error(w, repoErr.Error(), http.StatusBadRequest)
+		log.Fatalln(repoErr)
 		return
 	}
 	repoData := serverData.Repo
@@ -70,11 +77,13 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 	err = json.Unmarshal([]byte(bodyStr), &metricVal)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneJSON(): fail: %w", err)))
 		return
 	}
 	metricVal, foundErr := repoData.Get(metricVal.ID)
 	if foundErr != nil {
-		http.Error(w, "Err", http.StatusNotFound)
+		http.Error(w, foundErr.Error(), http.StatusNotFound)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneJSON(): fail: %w", foundErr)))
 		return
 	}
 
@@ -82,6 +91,7 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 	txtM, err := json.Marshal(metricVal)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneJSON(): fail: %w", err)))
 		return
 	}
 
@@ -90,6 +100,12 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 }
 
 func HandlerPingDB(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+	if serverData == nil || serverData.Repo == nil {
+		repoErr := types.NewTimeError(fmt.Errorf("HandlerPingDB(): Repo fail"))
+		http.Error(w, repoErr.Error(), http.StatusBadRequest)
+		log.Fatalln(repoErr)
+		return
+	}
 	if len(serverData.Config.DSN) < 1 {
 		http.Error(w, "DSN empty or no connection to DB", http.StatusInternalServerError)
 		return
@@ -113,28 +129,31 @@ func HandlerFuncOneRaw(w http.ResponseWriter, r *http.Request, serverData *serve
 	}
 
 	if httpErr != http.StatusOK {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(httpErr)
-		fmt.Fprintln(w, "Err")
+		errStr := "wrong type"
+		http.Error(w, errStr, httpErr)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneRaw(): fail: %v", errStr)))
 		return
 	}
 
 	_, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneRaw(): fail: %w", err)))
 		return
 	}
 
 	if serverData == nil || serverData.Repo == nil {
-		http.Error(w, "Repo fail", http.StatusBadRequest)
+		repoErr := types.NewTimeError(fmt.Errorf("HandlerFuncOneRaw(): Repo fail"))
+		http.Error(w, repoErr.Error(), http.StatusBadRequest)
+		log.Fatalln(repoErr)
 		return
 	}
 	repoData := serverData.Repo
 
 	oldVal, oldValErr := repoData.Get(nameParam)
 	if oldValErr != nil {
-		httpErr = http.StatusNotFound
-		http.Error(w, "Err", httpErr)
+		http.Error(w, oldValErr.Error(), http.StatusNotFound)
+		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneRaw(): fail: %w", oldValErr)))
 		return
 	}
 
