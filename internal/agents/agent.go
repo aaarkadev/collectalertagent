@@ -10,7 +10,8 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-
+	"os"
+	"os/user"
 	"reflect"
 	"runtime"
 
@@ -32,7 +33,7 @@ func updateOne(m types.Metrics, statStructReflect reflect.Value) (types.Metrics,
 		{
 			err := m.Set((m.GetDelta() + int64(1)))
 			if err != nil {
-				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail1: %w", err))
+				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail: %w", err))
 			}
 		}
 	case types.RandSource:
@@ -40,7 +41,7 @@ func updateOne(m types.Metrics, statStructReflect reflect.Value) (types.Metrics,
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			err := m.Set(r.Float64())
 			if err != nil {
-				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail2: %w", err))
+				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail: %w", err))
 			}
 		}
 	default:
@@ -57,7 +58,7 @@ func updateOne(m types.Metrics, statStructReflect reflect.Value) (types.Metrics,
 				}
 				err := m.Set(float64(floatVal))
 				if err != nil {
-					return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail2: %w", err))
+					return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail: %w", err))
 				}
 			} else {
 				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): statStructReflect.Value invalid"))
@@ -148,8 +149,12 @@ func SendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	client.Timeout = configs.GlobalDefaultTimeout
 
 	sendM := rep.GetAll()
-	for _, mElem := range sendM {
-		mElem.GenHash(config.HashKey)
+	if len(sendM) < 1 {
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: empty repo")))
+		return
+	}
+	for i := range sendM {
+		sendM[i].GenHash(config.HashKey)
 	}
 
 	txtM, err := json.Marshal(sendM)
@@ -163,7 +168,7 @@ func SendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 
 	req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(txtM))
 	if rqErr != nil {
-		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: %w", err)))
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: %w", rqErr)))
 		return
 	}
 	req.Header.Set("Content-Type", "Content-Type: application/json")
@@ -214,6 +219,28 @@ func sendMetricsRaw(rep repositories.Repo, config configs.AgentConfig) {
 		}
 		response.Body.Close()
 	}
+}
+
+var logFile *os.File
+
+func SetupLog() {
+	user, err := user.Current()
+	if err == nil && user.Username == "dron" {
+		logFile, err = os.OpenFile("log.agent.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			panic(fmt.Sprintf("error opening file: %v", err))
+		}
+	} else {
+		logFile = os.Stderr
+	}
+	log.SetFlags(log.Lshortfile)
+	log.SetPrefix("AGENT: ")
+	log.SetOutput(logFile)
+}
+
+func StopAgent(repo repositories.Repo) {
+	repo.Shutdown()
+	defer logFile.Close()
 }
 
 func StartAgent(rep repositories.Repo, config configs.AgentConfig) {

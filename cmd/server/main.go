@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/handlers"
@@ -16,14 +15,8 @@ import (
 )
 
 func main() {
-
-	f, err := os.OpenFile("/home/dron/go/src/dron/collectalertagent/log.sever.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer f.Close()
-	log.SetOutput(f)
-
+	servers.SetupLog()
+	log.Println(types.NewTimeError(fmt.Errorf("START")))
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel()
 
@@ -34,16 +27,16 @@ func main() {
 	repo = &storages.DBStorage{Config: &config}
 	isInitSuccess := repo.Init()
 	if !isInitSuccess {
-		log.Println(types.NewTimeError(fmt.Errorf("Init DB repo failed. falback to file.")))
+		log.Println(types.NewTimeError(fmt.Errorf("init DB repo failed. falback to file")))
 		repo = &storages.FileStorage{Config: config}
 		isInitSuccess = repo.Init()
 		if !isInitSuccess {
-			log.Println(types.NewTimeError(fmt.Errorf("Init File repo failed. falback to mem.")))
+			log.Println(types.NewTimeError(fmt.Errorf("init File repo failed. falback to mem")))
 		}
 	}
 
 	defer func() {
-		repo.Shutdown()
+		servers.StopServer(repo)
 	}()
 
 	serverData := servers.ServerHandlerData{}
@@ -65,5 +58,5 @@ func main() {
 
 	servers.StartServer(mainCtx, config, router)
 
-	log.Println(types.NewTimeError(fmt.Errorf("SERVER END")))
+	log.Println(types.NewTimeError(fmt.Errorf("END")))
 }

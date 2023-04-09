@@ -48,6 +48,7 @@ func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.
 }
 
 func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+
 	if r.Header.Get("Content-Type") != "application/json" {
 		errStr := "wrong Content-Type"
 		http.Error(w, errStr, http.StatusBadRequest)
@@ -94,7 +95,6 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 		log.Println(types.NewTimeError(fmt.Errorf("HandlerFuncOneJSON(): fail: %w", err)))
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(txtM)
 }
@@ -124,10 +124,9 @@ func HandlerFuncOneRaw(w http.ResponseWriter, r *http.Request, serverData *serve
 	typeParam := chi.URLParam(r, "type")
 	nameParam := chi.URLParam(r, "name")
 
-	if types.DataType(typeParam) != types.GaugeType && types.DataType(typeParam) != types.CounterType {
+	if !types.DataType(typeParam).IsValid() {
 		httpErr = http.StatusNotImplemented
 	}
-
 	if httpErr != http.StatusOK {
 		errStr := "wrong type"
 		http.Error(w, errStr, httpErr)

@@ -39,12 +39,12 @@ func (repo *DBStorage) Init() bool {
 	repo.mem.Init()
 
 	if repo.Config == nil {
-		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): empty Config. falback to file.")))
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): empty Config. falback to file")))
 		return false
 	}
 	if len(repo.Config.DSN) <= 0 {
 		repo.Config.DSN = ""
-		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): empty Config.DSN falback to file.")))
+		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): empty Config.DSN falback to file")))
 		return false
 	}
 	conn, connErr := sql.Open("pgx", repo.Config.DSN)

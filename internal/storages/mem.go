@@ -19,9 +19,11 @@ func (repo *MemStorage) Init() bool {
 }
 
 func (repo *MemStorage) GetAll() []types.Metrics {
-	allMetrics := []types.Metrics{}
-	allMetrics = append(allMetrics, repo.metrics...)
-	return allMetrics
+	copyValsMetrics := []types.Metrics{}
+	for _, m := range repo.metrics {
+		copyValsMetrics = append(copyValsMetrics, m.GetMetric())
+	}
+	return copyValsMetrics
 }
 
 func (repo *MemStorage) Get(k string) (types.Metrics, error) {

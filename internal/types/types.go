@@ -126,9 +126,15 @@ func (m *Metrics) Get() string {
 }
 
 func (m *Metrics) GetDelta() int64 {
+	if !m.IsDelta() {
+		return int64(0)
+	}
 	return *m.Delta
 }
 func (m *Metrics) GetValue() float64 {
+	if !m.IsValue() {
+		return float64(0.0)
+	}
 	return *m.Value
 }
 
@@ -137,6 +143,23 @@ func (m *Metrics) IsDelta() bool {
 }
 func (m *Metrics) IsValue() bool {
 	return m.Value != nil
+}
+
+func (m *Metrics) GetMetric() Metrics {
+	newElem := Metrics{}
+	newElem.ID = m.ID
+	newElem.MType = m.MType
+	if DataType(m.MType) == CounterType {
+		delta := m.GetDelta()
+		newElem.Delta = &delta
+	} else {
+		value := m.GetValue()
+		newElem.Value = &value
+	}
+
+	newElem.Hash = m.Hash
+	newElem.Source = m.Source
+	return newElem
 }
 
 func (m *Metrics) SetMetric(newM Metrics) error {

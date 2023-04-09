@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+
 	"os/signal"
+	"os/user"
 	"strings"
 	"syscall"
 
@@ -107,6 +109,28 @@ func GzipMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(&ServerHandlerData{ResponseWriter: w, Writer: *gz}, r)
 	})
+}
+
+var logFile *os.File
+
+func SetupLog() {
+	user, err := user.Current()
+	if err == nil && user.Username == "dron" {
+		logFile, err = os.OpenFile("log.sever.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			panic(fmt.Sprintf("error opening file: %v", err))
+		}
+	} else {
+		logFile = os.Stderr
+	}
+	log.SetFlags(log.Lshortfile)
+	log.SetPrefix("SERVER: ")
+	log.SetOutput(logFile)
+}
+
+func StopServer(repo repositories.Repo) {
+	repo.Shutdown()
+	defer logFile.Close()
 }
 
 func StartServer(mainCtx context.Context, config configs.ServerConfig, router http.Handler) *http.Server {
