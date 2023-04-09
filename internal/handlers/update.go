@@ -15,26 +15,40 @@ import (
 )
 
 func HandlerUpdatesJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
-	HandlerUpdateJSON(w, r, serverData)
+	_, err := getHandlerUpdateJSONResponse(w, r, serverData)
+	if err != nil {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{}`))
 }
 
 func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+	txtM, err := getHandlerUpdateJSONResponse(w, r, serverData)
+	if err != nil {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(txtM))
+}
+
+func getHandlerUpdateJSONResponse(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) (string, error) {
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	bodyStr := strings.Trim(string(bodyBytes[:]), " /")
 
 	if err != nil || len(bodyStr) <= 0 {
-		errStr := "BadRequest. empty body"
-		http.Error(w, errStr, http.StatusBadRequest)
-		log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(1): %v", errStr)))
-		return
+		e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(1): BadRequest. empty body"))
+		http.Error(w, e.Error(), http.StatusBadRequest)
+		log.Println(e)
+		return "", e
 	}
 
 	if serverData == nil || serverData.Repo == nil {
-		repoErr := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(2): Repo fail"))
-		http.Error(w, repoErr.Error(), http.StatusBadRequest)
-		log.Fatalln(repoErr)
-		return
+		e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(2): Repo fail"))
+		http.Error(w, e.Error(), http.StatusBadRequest)
+		log.Fatalln(e)
+		return "", e
 	}
 
 	updateOneMetric := types.Metrics{}
@@ -42,31 +56,31 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 	err = json.Unmarshal([]byte(bodyStr), &updateOneMetric)
 	if err == nil {
 		if !types.DataType(updateOneMetric.MType).IsValid() {
-			errStr := "DataType invalid"
-			http.Error(w, errStr, http.StatusBadRequest)
-			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(3): %v", errStr)))
-			return
+			e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(3): DataType invalid"))
+			http.Error(w, e.Error(), http.StatusBadRequest)
+			log.Println(e)
+			return "", e
 		}
 
 		if types.DataType(updateOneMetric.MType) == types.GaugeType && !updateOneMetric.IsValue() {
-			errStr := "empty value"
-			http.Error(w, errStr, http.StatusBadRequest)
-			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(4): %v", errStr)))
-			return
+			e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(4): empty value"))
+			http.Error(w, e.Error(), http.StatusBadRequest)
+			log.Println(e)
+			return "", e
 		}
 		if types.DataType(updateOneMetric.MType) == types.CounterType && !updateOneMetric.IsDelta() {
-			errStr := "empty delta"
-			http.Error(w, errStr, http.StatusBadRequest)
-			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(5): %v", errStr)))
-			return
+			e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(5): empty delta"))
+			http.Error(w, e.Error(), http.StatusBadRequest)
+			log.Println(e)
+			return "", e
 		}
 		tmpHash := updateOneMetric
 		tmpHash.GenHash(serverData.Config.HashKey)
 		if len(updateOneMetric.Hash) > 0 && updateOneMetric.Hash != tmpHash.Hash {
-			errStr := "wrong hash"
-			http.Error(w, errStr, http.StatusBadRequest)
-			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(6): %v", errStr)))
-			return
+			e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(6): wrong hash"))
+			http.Error(w, e.Error(), http.StatusBadRequest)
+			log.Println(e)
+			return "", e
 		}
 		serverData.Repo.Set(updateOneMetric)
 		isUpdateOneMetric = true
@@ -77,23 +91,28 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 		newMetrics := []types.Metrics{}
 		err = json.Unmarshal([]byte(bodyStr), &newMetrics)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(7): fail: %w", err)))
-			return
+			e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(7): %w", err))
+			http.Error(w, e.Error(), http.StatusBadRequest)
+			log.Println(e)
+			return "", e
 		}
+
 		for _, m := range newMetrics {
+
 			tmpHash := m
 			tmpHash.GenHash(serverData.Config.HashKey)
+
 			if len(m.Hash) > 0 && m.Hash != tmpHash.Hash {
-				errStr := "wrong hash"
-				log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(8): fail: %v", errStr)))
+				e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(8): wrong hash %v", m.ID))
+				log.Println(e)
 				continue
 			}
 			err := serverData.Repo.Set(m)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(9): fail: %w", err)))
-				return
+				e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(9): %w", err))
+				http.Error(w, e.Error(), http.StatusBadRequest)
+				log.Println(e)
+				return "", e
 			}
 		}
 		hashedMetrics := serverData.Repo.GetAll()
@@ -108,15 +127,15 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 	}
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Println(types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(10): fail: %w", err)))
-		return
+		e := types.NewTimeError(fmt.Errorf("HandlerUpdateJSON(10): %w", err))
+		http.Error(w, e.Error(), http.StatusBadRequest)
+		log.Println(e)
+		return "", e
 	}
 
 	serverData.Repo.FlushDB()
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(txtM)
+	return string(txtM), nil
 }
 
 func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
