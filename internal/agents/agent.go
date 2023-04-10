@@ -396,9 +396,20 @@ func StartAgent(rep repositories.Repo, config configs.AgentConfig) {
 	wg.Add(1)
 	startSendMetricsJSON(rep, config, &wg)
 
-	time.AfterFunc(15*time.Second, func() {
-		config.MainCtx.Value("mainCtxCancel").(context.CancelFunc)()
-	})
+	groupStoped := make(chan struct{})
+	go func() {
+		wg.Wait()
+		groupStoped <- struct{}{}
+	}()
 
-	wg.Wait()
+	select {
+	case <-groupStoped:
+		{
+			return
+		}
+	case <-config.MainCtx.Done():
+		{
+			return
+		}
+	}
 }
