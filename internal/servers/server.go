@@ -16,6 +16,7 @@ import (
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/aaarkadev/collectalertagent/internal/types"
 )
 
@@ -131,6 +132,26 @@ func SetupLog() {
 func StopServer(repo repositories.Repo) {
 	repo.Shutdown()
 	defer logFile.Close()
+}
+
+func Init(config *configs.ServerConfig) (repositories.Repo, ServerHandlerData) {
+	var repo repositories.Repo
+	repo = &storages.DBStorage{Config: config}
+	isInitSuccess := repo.Init()
+	if !isInitSuccess {
+		log.Println(types.NewTimeError(fmt.Errorf("init DB repo failed. falback to file")))
+		repo = &storages.FileStorage{Config: config}
+		isInitSuccess = repo.Init()
+		if !isInitSuccess {
+			log.Println(types.NewTimeError(fmt.Errorf("init File repo failed. falback to mem")))
+		}
+	}
+
+	serverData := ServerHandlerData{}
+	serverData.Repo = repo
+	serverData.Config = *config
+
+	return repo, serverData
 }
 
 func StartServer(mainCtx context.Context, config configs.ServerConfig, router http.Handler) *http.Server {

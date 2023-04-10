@@ -114,11 +114,6 @@ func (m *Metrics) Get() string {
 	default:
 		{
 			s = fmt.Sprintf("%.3f", m.GetValue())
-			/*r := []rune(strings.TrimRight(s, "0"))
-			if r[len(r)-1] == '.' {
-				r = append(r, '0')
-			}
-			s = string(r)*/
 		}
 	}
 

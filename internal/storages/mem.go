@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/types"
@@ -9,6 +10,7 @@ import (
 
 type MemStorage struct {
 	metrics []types.Metrics
+	mu      sync.RWMutex
 }
 
 var _ repositories.Repo = (*MemStorage)(nil)
@@ -19,6 +21,9 @@ func (repo *MemStorage) Init() bool {
 }
 
 func (repo *MemStorage) GetAll() []types.Metrics {
+	repo.mu.RLock()
+	defer repo.mu.RUnlock()
+
 	copyValsMetrics := []types.Metrics{}
 	for _, m := range repo.metrics {
 		copyValsMetrics = append(copyValsMetrics, m.GetMetric())
@@ -65,6 +70,9 @@ func (repo *MemStorage) Set(mset types.Metrics) error {
 			}
 		}
 	}
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	repo.metrics = allMetrics
 	return err
 }

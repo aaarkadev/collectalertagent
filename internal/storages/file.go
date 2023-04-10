@@ -14,7 +14,7 @@ import (
 
 type FileStorage struct {
 	mem       MemStorage
-	Config    configs.ServerConfig
+	Config    *configs.ServerConfig
 	StoreFile *os.File
 }
 
@@ -23,6 +23,11 @@ var _ repositories.Repo = (*FileStorage)(nil)
 func (repo *FileStorage) Init() bool {
 	repo.mem = MemStorage{}
 	repo.mem.Init()
+
+	if repo.Config == nil {
+		log.Println(types.NewTimeError(fmt.Errorf("FileStorage.Init(): empty Config. falback to file")))
+		return false
+	}
 
 	if len(repo.Config.StoreFileName) > 0 {
 		fmode := os.O_RDWR | os.O_CREATE
