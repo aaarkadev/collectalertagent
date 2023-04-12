@@ -3,25 +3,45 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/handlers"
+	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/servers"
 	"github.com/aaarkadev/collectalertagent/internal/storages"
+	"github.com/aaarkadev/collectalertagent/internal/types"
 	"github.com/go-chi/chi/v5"
 )
 
 func main() {
+	servers.SetupLog()
+	log.Println(types.NewTimeError(fmt.Errorf("START")))
+	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	defer mainCtxCancel()
 
 	config := configs.InitServerConfig()
-	repo := storages.FileStorage{Config: config}
-	repo.Init()
+	config.MainCtx = mainCtx
+
+	var repo repositories.Repo
+	repo = &storages.DBStorage{Config: &config}
+	isInitSuccess := repo.Init()
+	if !isInitSuccess {
+		log.Println(types.NewTimeError(fmt.Errorf("init DB repo failed. falback to file")))
+		repo = &storages.FileStorage{Config: config}
+		isInitSuccess = repo.Init()
+		if !isInitSuccess {
+			log.Println(types.NewTimeError(fmt.Errorf("init File repo failed. falback to mem")))
+		}
+	}
+
 	defer func() {
-		repo.Shutdown()
+		servers.StopServer(repo)
 	}()
 
 	serverData := servers.ServerHandlerData{}
-	serverData.Repo = &repo
+	serverData.Repo = repo
+	serverData.Config = config
 
 	router := chi.NewRouter()
 	router.Use(servers.GzipMiddleware)
@@ -29,16 +49,14 @@ func main() {
 
 	router.Post("/update/{type}/{name}/{value}", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateRaw))
 	router.Post("/update/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateJSON))
+	router.Post("/updates/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdatesJSON))
 
 	router.Get("/value/{type}/{name}", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneRaw))
 	router.Post("/value/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneJSON))
 	router.Get("/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncAll))
-
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	defer mainCtxCancel()
+	router.Get("/ping", servers.BindServerToHandler(&serverData, handlers.HandlerPingDB))
 
 	servers.StartServer(mainCtx, config, router)
 
-	fmt.Println("SERVER END")
-
+	log.Println(types.NewTimeError(fmt.Errorf("END")))
 }

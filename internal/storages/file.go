@@ -2,6 +2,8 @@ package storages
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -32,6 +34,8 @@ func (repo *FileStorage) Init() bool {
 			repo.StoreFile = file
 		} else {
 			repo.Config.StoreFileName = ""
+			log.Println(types.NewTimeError(fmt.Errorf("FileStorage.Init(): open fail. falback to file. fail: %w", fileErr)))
+			return false
 		}
 	}
 
@@ -63,11 +67,15 @@ func (repo *FileStorage) loadDB() {
 	oldMetrics := []types.Metrics{}
 
 	if err := decoder.Decode(&oldMetrics); err != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("FileStorage.loadDB(): fail: %w", err)))
 		return
 	}
 
 	for _, m := range oldMetrics {
-		repo.Set(m)
+		err := repo.Set(m)
+		if err != nil {
+			log.Fatalln(types.NewTimeError(fmt.Errorf("FileStorage.loadDB(): fail: %w", err)))
+		}
 	}
 }
 
@@ -79,14 +87,14 @@ func (repo *FileStorage) Shutdown() {
 }
 
 func (repo *FileStorage) GetAll() []types.Metrics {
-	return repo.mem.metrics
+	return repo.mem.GetAll()
 }
 
 func (repo *FileStorage) Get(k string) (types.Metrics, error) {
 	return repo.mem.Get(k)
 }
 
-func (repo *FileStorage) Set(mset types.Metrics) bool {
+func (repo *FileStorage) Set(mset types.Metrics) error {
 	return repo.mem.Set(mset)
 }
 
@@ -100,16 +108,19 @@ func (repo *FileStorage) StoreDBfunc() {
 	}
 	_, err = repo.StoreFile.Seek(0, 0)
 	if err != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("FileStorage.StoreDBfunc(): fail: %w", err)))
 		return
 	}
 
 	storeTxt, err := json.Marshal(repo.GetAll())
 	if err != nil {
+		log.Fatalln(types.NewTimeError(fmt.Errorf("FileStorage.StoreDBfunc(): fail: %w", err)))
 		return
 	}
 
 	_, err = repo.StoreFile.WriteString(string(storeTxt[:]))
 	if err != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("FileStorage.StoreDBfunc(): fail: %w", err)))
 		return
 	}
 
@@ -121,4 +132,8 @@ func (repo *FileStorage) FlushDB() {
 		return
 	}
 
+}
+
+func (repo *FileStorage) Ping() error {
+	return nil
 }

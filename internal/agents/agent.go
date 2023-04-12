@@ -10,9 +10,11 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-
+	"os"
+	"os/user"
 	"reflect"
 	"runtime"
+
 	"time"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
@@ -25,16 +27,22 @@ func numToFloat[T constraints.Integer | constraints.Float](a T) float64 {
 	return float64(a)
 }
 
-func updateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
+func updateOne(m types.Metrics, statStructReflect reflect.Value) (types.Metrics, error) {
 	switch m.Source {
 	case types.IncrementSource:
 		{
-			m.Set((*m.Delta + int64(1)))
+			err := m.Set((m.GetDelta() + int64(1)))
+			if err != nil {
+				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail: %w", err))
+			}
 		}
 	case types.RandSource:
 		{
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			m.Set(r.Float64())
+			err := m.Set(r.Float64())
+			if err != nil {
+				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail: %w", err))
+			}
 		}
 	default:
 		{
@@ -48,12 +56,17 @@ func updateOne(m types.Metrics, statStructReflect reflect.Value) types.Metrics {
 				} else {
 					floatVal = numToFloat(structFieldVal.Int())
 				}
-				m.Set(float64(floatVal))
+				err := m.Set(float64(floatVal))
+				if err != nil {
+					return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): fail: %w", err))
+				}
+			} else {
+				return m, types.NewTimeError(fmt.Errorf("agent.updateOne(): statStructReflect.Value invalid"))
 			}
 		}
 	}
 
-	return m
+	return m, nil
 }
 
 func UpdatelMetrics(rep repositories.Repo) bool {
@@ -68,10 +81,13 @@ func UpdatelMetrics(rep repositories.Repo) bool {
 	}
 
 	for _, mElem := range rep.GetAll() {
-		mElem = updateOne(mElem, reflectVal)
-		ok := rep.Set(mElem)
-		if !ok {
-			log.Fatal("error repo set element")
+		mElem, err := updateOne(mElem, reflectVal)
+		if err != nil {
+			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.UpdatelMetrics(): fail: %w", err)))
+		}
+		err = rep.Set(mElem)
+		if err != nil {
+			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.UpdatelMetrics(): fail: %w", err)))
 		}
 	}
 	return true
@@ -118,11 +134,11 @@ func InitAllMetrics(rep repositories.Repo) {
 	for _, v := range initVars {
 		newM, err := types.NewMetric(v.Name, v.Type, v.Source)
 		if err != nil {
-			log.Fatal("NewMetric error")
+			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.InitAllMetrics(): fail1: %w", err)))
 		}
-		ok := rep.Set(*newM)
-		if !ok {
-			log.Fatal("error repo set element")
+		err = rep.Set(*newM)
+		if err != nil {
+			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.InitAllMetrics(): fail2: %w", err)))
 		}
 	}
 
@@ -130,62 +146,101 @@ func InitAllMetrics(rep repositories.Repo) {
 
 func SendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
-	client.Timeout = 10 * time.Second
+	client.Timeout = configs.GlobalDefaultTimeout
 
-	txtM, err := json.Marshal(rep.GetAll())
-	if err != nil {
-		panic(err)
+	sendM := rep.GetAll()
+	if len(sendM) < 1 {
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: empty repo")))
+		return
 	}
-	url := fmt.Sprintf("http://%v/update/", config.SendAddress)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	for i := range sendM {
+		sendM[i].GenHash(config.HashKey)
+	}
+
+	txtM, err := json.Marshal(sendM)
+
+	if err != nil {
+		log.Fatalln(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): fail: %w", err)))
+	}
+	url := fmt.Sprintf("http://%v/updates/", config.SendAddress)
+	ctx, cancel := context.WithTimeout(context.Background(), configs.GlobalDefaultTimeout)
 	defer cancel()
 
 	req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(txtM))
 	if rqErr != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: %w", rqErr)))
 		return
 	}
 	req.Header.Set("Content-Type", "Content-Type: application/json")
 
 	response, doErr := client.Do(req)
 	if doErr != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: %w", doErr)))
 		return
 	}
 
 	_, ioErr := io.Copy(io.Discard, response.Body)
+	defer response.Body.Close()
 	if ioErr != nil {
+		log.Println(types.NewTimeError(fmt.Errorf("agent.SendMetricsJSON(): warn: %w", ioErr)))
 		return
 	}
-	response.Body.Close()
+
 }
 
 func sendMetricsRaw(rep repositories.Repo, config configs.AgentConfig) {
 	client := &http.Client{}
-	client.Timeout = 10 * time.Second
+	client.Timeout = configs.GlobalDefaultTimeout
 
 	for _, v := range rep.GetAll() {
 		url := fmt.Sprintf("http://%v/update/%v/%v/%v", config.SendAddress, v.MType, v.ID, v.Get())
 
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), configs.GlobalDefaultTimeout)
 		defer cancel()
 
 		req, rqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 		if rqErr != nil {
+			log.Println(types.NewTimeError(fmt.Errorf("agent.sendMetricsRaw(): warn: %w", rqErr)))
 			continue
 		}
 		req.Header.Set("Content-Type", "Content-Type: text/plain")
 
 		response, doErr := client.Do(req)
 		if doErr != nil {
+			log.Println(types.NewTimeError(fmt.Errorf("agent.sendMetricsRaw(): warn: %w", doErr)))
 			continue
 		}
 
 		_, ioErr := io.Copy(io.Discard, response.Body)
 		if ioErr != nil {
+			log.Println(types.NewTimeError(fmt.Errorf("agent.sendMetricsRaw(): warn: %w", ioErr)))
+			response.Body.Close()
 			continue
 		}
 		response.Body.Close()
-
 	}
+}
+
+var logFile *os.File
+
+func SetupLog() {
+	user, err := user.Current()
+	if err == nil && user.Username == "dron" {
+		logFile, err = os.OpenFile("log.agent.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			panic(fmt.Sprintf("error opening file: %v", err))
+		}
+	} else {
+		logFile = os.Stderr
+	}
+	log.SetFlags(log.Lshortfile)
+	log.SetPrefix("AGENT: ")
+	log.SetOutput(logFile)
+}
+
+func StopAgent(repo repositories.Repo) {
+	repo.Shutdown()
+	defer logFile.Close()
 }
 
 func StartAgent(rep repositories.Repo, config configs.AgentConfig) {
@@ -210,4 +265,5 @@ func StartAgent(rep repositories.Repo, config configs.AgentConfig) {
 			}
 		}
 	}
+
 }

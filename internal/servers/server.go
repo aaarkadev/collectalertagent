@@ -3,21 +3,25 @@ package servers
 import (
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"strings"
 
+	"os/signal"
+	"os/user"
+	"strings"
 	"syscall"
-	"time"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/types"
 )
 
 type ServerHandlerData struct {
 	Repo            repositories.Repo
+	Config          configs.ServerConfig
 	IsHeadersWriten bool
 	Writer          gzip.Writer
 	http.ResponseWriter
@@ -77,6 +81,7 @@ func UnGzipMiddleware(next http.Handler) http.Handler {
 		gz, err := gzip.NewReader(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			log.Panicln(types.NewTimeError(fmt.Errorf("server.UnGzipMiddleware(): fail: %w", err)))
 			return
 		}
 		defer gz.Close()
@@ -98,11 +103,34 @@ func GzipMiddleware(next http.Handler) http.Handler {
 		gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			log.Panicln(types.NewTimeError(fmt.Errorf("server.GzipMiddleware(): fail: %w", err)))
 			return
 		}
 
 		next.ServeHTTP(&ServerHandlerData{ResponseWriter: w, Writer: *gz}, r)
 	})
+}
+
+var logFile *os.File
+
+func SetupLog() {
+	user, err := user.Current()
+	if err == nil && user.Username == "dron" {
+		logFile, err = os.OpenFile("log.sever.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			panic(fmt.Sprintf("error opening file: %v", err))
+		}
+	} else {
+		logFile = os.Stderr
+	}
+	log.SetFlags(log.Lshortfile)
+	log.SetPrefix("SERVER: ")
+	log.SetOutput(logFile)
+}
+
+func StopServer(repo repositories.Repo) {
+	repo.Shutdown()
+	defer logFile.Close()
 }
 
 func StartServer(mainCtx context.Context, config configs.ServerConfig, router http.Handler) *http.Server {
@@ -118,17 +146,17 @@ func StartServer(mainCtx context.Context, config configs.ServerConfig, router ht
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(err)
+			log.Panicln(types.NewTimeError(fmt.Errorf("server.StartServer(): fail: %w", err)))
 		}
 	}()
 
 	<-sigChan
 
-	shutdownCtx, shutdownCtxCancel := context.WithTimeout(mainCtx, 15*time.Second)
+	shutdownCtx, shutdownCtxCancel := context.WithTimeout(mainCtx, configs.GlobalDefaultTimeout)
 	defer shutdownCtxCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		panic(err)
+		log.Panicln(types.NewTimeError(fmt.Errorf("server.StartServer(): fail: %w", err)))
 	}
 
 	return server
