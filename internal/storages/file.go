@@ -1,10 +1,12 @@
 package storages
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
@@ -20,9 +22,9 @@ type FileStorage struct {
 
 var _ repositories.Repo = (*FileStorage)(nil)
 
-func (repo *FileStorage) Init() bool {
+func (repo *FileStorage) Init(mainCtx context.Context) bool {
 	repo.mem = MemStorage{}
-	repo.mem.Init()
+	repo.mem.Init(mainCtx)
 
 	if repo.Config == nil {
 		log.Println(types.NewTimeError(fmt.Errorf("FileStorage.Init(): empty Config. falback to file")))
@@ -44,7 +46,7 @@ func (repo *FileStorage) Init() bool {
 		}
 	}
 
-	repo.loadDB()
+	repo.loadDB(mainCtx)
 
 	go func() {
 		if repo.Config.StoreInterval == 0 {
@@ -52,15 +54,25 @@ func (repo *FileStorage) Init() bool {
 		}
 		storeTicker := time.NewTicker(repo.Config.StoreInterval)
 		defer storeTicker.Stop()
-		for range storeTicker.C {
-			repo.StoreDBfunc()
+		for {
+			select {
+			case <-storeTicker.C:
+				{
+					repo.StoreDBfunc(mainCtx)
+				}
+			case <-mainCtx.Done():
+				{
+					runtime.Goexit()
+					return
+				}
+			}
 		}
 	}()
 
 	return true
 }
 
-func (repo *FileStorage) loadDB() {
+func (repo *FileStorage) loadDB(mainCtx context.Context) {
 	if !repo.Config.IsRestore {
 		return
 	}
@@ -84,8 +96,8 @@ func (repo *FileStorage) loadDB() {
 	}
 }
 
-func (repo *FileStorage) Shutdown() {
-	repo.StoreDBfunc()
+func (repo *FileStorage) Shutdown(mainCtx context.Context) {
+	repo.StoreDBfunc(mainCtx)
 	if len(repo.Config.StoreFileName) > 0 {
 		defer repo.StoreFile.Close()
 	}
@@ -103,7 +115,7 @@ func (repo *FileStorage) Set(mset types.Metrics) error {
 	return repo.mem.Set(mset)
 }
 
-func (repo *FileStorage) StoreDBfunc() {
+func (repo *FileStorage) StoreDBfunc(mainCtx context.Context) {
 	if len(repo.Config.StoreFileName) <= 0 {
 		return
 	}
@@ -131,14 +143,14 @@ func (repo *FileStorage) StoreDBfunc() {
 
 }
 
-func (repo *FileStorage) FlushDB() {
+func (repo *FileStorage) FlushDB(mainCtx context.Context) {
 	if repo.Config.StoreInterval == 0 {
-		repo.StoreDBfunc()
+		repo.StoreDBfunc(mainCtx)
 		return
 	}
 
 }
 
-func (repo *FileStorage) Ping() error {
+func (repo *FileStorage) Ping(mainCtx context.Context) error {
 	return nil
 }

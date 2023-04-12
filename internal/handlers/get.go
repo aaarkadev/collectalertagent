@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,7 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+func HandlerFuncAll(mainCtx context.Context, w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	body := `<!doctype html><html lang="ru">
 			<body>
@@ -47,7 +48,7 @@ func HandlerFuncAll(w http.ResponseWriter, r *http.Request, serverData *servers.
 	io.WriteString(w, fmt.Sprintf(body, strings.Join(tableStr, "\r\n")))
 }
 
-func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+func HandlerFuncOneJSON(mainCtx context.Context, w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	if r.Header.Get("Content-Type") != "application/json" {
 		errStr := "wrong Content-Type"
@@ -99,7 +100,7 @@ func HandlerFuncOneJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 	w.Write(txtM)
 }
 
-func HandlerPingDB(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+func HandlerPingDB(mainCtx context.Context, w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 	if serverData == nil || serverData.Repo == nil {
 		repoErr := types.NewTimeError(fmt.Errorf("HandlerPingDB(): Repo fail"))
 		http.Error(w, repoErr.Error(), http.StatusBadRequest)
@@ -110,7 +111,7 @@ func HandlerPingDB(w http.ResponseWriter, r *http.Request, serverData *servers.S
 		http.Error(w, "DSN empty or no connection to DB", http.StatusInternalServerError)
 		return
 	}
-	pingErr := serverData.Repo.Ping()
+	pingErr := serverData.Repo.Ping(mainCtx)
 	if pingErr != nil {
 		http.Error(w, pingErr.Error(), http.StatusInternalServerError)
 		return
@@ -118,7 +119,7 @@ func HandlerPingDB(w http.ResponseWriter, r *http.Request, serverData *servers.S
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandlerFuncOneRaw(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+func HandlerFuncOneRaw(mainCtx context.Context, w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	httpErr := http.StatusOK
 	typeParam := chi.URLParam(r, "type")

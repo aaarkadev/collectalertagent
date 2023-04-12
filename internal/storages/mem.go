@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -15,7 +16,7 @@ type MemStorage struct {
 
 var _ repositories.Repo = (*MemStorage)(nil)
 
-func (repo *MemStorage) Init() bool {
+func (repo *MemStorage) Init(mainCtx context.Context) bool {
 	repo.metrics = make([]types.Metrics, 0)
 	return true
 }
@@ -77,13 +78,13 @@ func (repo *MemStorage) Set(mset types.Metrics) error {
 	return err
 }
 
-func (repo *MemStorage) FlushDB() {
+func (repo *MemStorage) FlushDB(mainCtx context.Context) {
 }
 
-func (repo *MemStorage) Shutdown() {
+func (repo *MemStorage) Shutdown(mainCtx context.Context) {
 
 }
 
-func (repo *MemStorage) Ping() error {
+func (repo *MemStorage) Ping(mainCtx context.Context) error {
 	return nil
 }

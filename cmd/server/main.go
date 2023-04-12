@@ -17,29 +17,28 @@ func main() {
 	log.Println(types.NewTimeError(fmt.Errorf("START")))
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	mainCtx = context.WithValue(mainCtx, "mainCtxCancel", mainCtxCancel)
+	mainCtx = context.WithValue(mainCtx, types.MainCtxCancelFunc, mainCtxCancel)
 	defer mainCtxCancel()
 
 	config := configs.InitServerConfig()
-	config.MainCtx = mainCtx
 
-	repo, serverData := servers.Init(&config)
+	repo, serverData := servers.Init(mainCtx, &config)
 	defer func() {
-		servers.StopServer(repo)
+		servers.StopServer(mainCtx, repo)
 	}()
 
 	router := chi.NewRouter()
 	router.Use(servers.GzipMiddleware)
 	router.Use(servers.UnGzipMiddleware)
 
-	router.Post("/update/{type}/{name}/{value}", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateRaw))
-	router.Post("/update/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdateJSON))
-	router.Post("/updates/", servers.BindServerToHandler(&serverData, handlers.HandlerUpdatesJSON))
+	router.Post("/update/{type}/{name}/{value}", servers.BindServerDataToHandler(mainCtx, &serverData, handlers.HandlerUpdateRaw))
+	router.Post("/update/", servers.BindServerDataToHandler(mainCtx, &serverData, handlers.HandlerUpdateJSON))
+	router.Post("/updates/", servers.BindServerDataToHandler(mainCtx, &serverData, handlers.HandlerUpdatesJSON))
 
-	router.Get("/value/{type}/{name}", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneRaw))
-	router.Post("/value/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncOneJSON))
-	router.Get("/", servers.BindServerToHandler(&serverData, handlers.HandlerFuncAll))
-	router.Get("/ping", servers.BindServerToHandler(&serverData, handlers.HandlerPingDB))
+	router.Get("/value/{type}/{name}", servers.BindServerDataToHandler(mainCtx, &serverData, handlers.HandlerFuncOneRaw))
+	router.Post("/value/", servers.BindServerDataToHandler(mainCtx, &serverData, handlers.HandlerFuncOneJSON))
+	router.Get("/", servers.BindServerDataToHandler(mainCtx, &serverData, handlers.HandlerFuncAll))
+	router.Get("/ping", servers.BindServerDataToHandler(mainCtx, &serverData, handlers.HandlerPingDB))
 
 	servers.StartServer(mainCtx, config, router)
 

@@ -129,19 +129,19 @@ func SetupLog() {
 	log.SetOutput(logFile)
 }
 
-func StopServer(repo repositories.Repo) {
-	repo.Shutdown()
+func StopServer(mainCtx context.Context, repo repositories.Repo) {
+	repo.Shutdown(mainCtx)
 	defer logFile.Close()
 }
 
-func Init(config *configs.ServerConfig) (repositories.Repo, ServerHandlerData) {
+func Init(mainCtx context.Context, config *configs.ServerConfig) (repositories.Repo, ServerHandlerData) {
 	var repo repositories.Repo
 	repo = &storages.DBStorage{Config: config}
-	isInitSuccess := repo.Init()
+	isInitSuccess := repo.Init(mainCtx)
 	if !isInitSuccess {
 		log.Println(types.NewTimeError(fmt.Errorf("init DB repo failed. falback to file")))
 		repo = &storages.FileStorage{Config: config}
-		isInitSuccess = repo.Init()
+		isInitSuccess = repo.Init(mainCtx)
 		if !isInitSuccess {
 			log.Println(types.NewTimeError(fmt.Errorf("init File repo failed. falback to mem")))
 		}
@@ -183,8 +183,8 @@ func StartServer(mainCtx context.Context, config configs.ServerConfig, router ht
 	return server
 }
 
-func BindServerToHandler(s *ServerHandlerData, f func(http.ResponseWriter, *http.Request, *ServerHandlerData)) http.HandlerFunc {
+func BindServerDataToHandler(mainCtx context.Context, s *ServerHandlerData, f func(context.Context, http.ResponseWriter, *http.Request, *ServerHandlerData)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		f(w, r, s)
+		f(mainCtx, w, r, s)
 	}
 }

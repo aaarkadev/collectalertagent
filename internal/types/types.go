@@ -31,6 +31,10 @@ const (
 	RandSource
 )
 
+type CtxValues string
+
+var MainCtxCancelFunc = CtxValues("mainCtxCancel")
+
 type TimeError struct {
 	Time time.Time
 	Err  error

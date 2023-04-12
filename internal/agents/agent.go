@@ -112,77 +112,22 @@ func UpdatePsMetrics(rep repositories.Repo) bool {
 	return true
 }
 
-func startSendMetricsJSON(rep repositories.Repo, config configs.AgentConfig, wg *sync.WaitGroup) {
-
+func startJob(mainCtx context.Context, wg *sync.WaitGroup, interval time.Duration, jobFunc func()) {
 	var delayedFunc func(isFirstCall bool)
 	delayedFunc = func(isFirstCall bool) {
 		if !isFirstCall {
-			SendMetricsJSON(rep, config)
-			isFirstCall = false
+			jobFunc()
 		}
-		time.AfterFunc(config.ReportInterval, func() {
+		time.AfterFunc(interval, func() {
 			delayedFunc(false)
 		})
 	}
 
 	go func() {
 		delayedFunc(true)
-
-		select {
-		case <-config.MainCtx.Done():
-			wg.Done()
-			runtime.Goexit()
-			return
-		}
-	}()
-
-}
-
-func startUpdatePsMetrics(rep repositories.Repo, config configs.AgentConfig, wg *sync.WaitGroup) {
-
-	var delayedFunc func(isFirstCall bool)
-	delayedFunc = func(isFirstCall bool) {
-		if !isFirstCall {
-			UpdatePsMetrics(rep)
-		}
-		time.AfterFunc(config.PollInterval, func() {
-			delayedFunc(false)
-		})
-	}
-
-	go func() {
-		delayedFunc(true)
-
-		select {
-		case <-config.MainCtx.Done():
-			wg.Done()
-			runtime.Goexit()
-			return
-		}
-	}()
-}
-
-func startUpdateOsMetrics(rep repositories.Repo, config configs.AgentConfig, wg *sync.WaitGroup) {
-
-	var delayedFunc func(isFirstCall bool)
-	delayedFunc = func(isFirstCall bool) {
-		if !isFirstCall {
-			UpdateOsMetrics(rep)
-		}
-		time.AfterFunc(config.PollInterval, func() {
-			delayedFunc(false)
-		})
-	}
-
-	go func() {
-		delayedFunc(true)
-
-		select {
-		case <-config.MainCtx.Done():
-			wg.Done()
-			runtime.Goexit()
-			return
-		}
+		<-mainCtx.Done()
+		wg.Done()
+		runtime.Goexit()
 	}()
 }
 
@@ -220,10 +165,10 @@ func isPsMetrica(m types.Metrics) bool {
 	return false
 }
 
-func Init(config *configs.AgentConfig) repositories.Repo {
+func Init(mainCtx context.Context, config *configs.AgentConfig) repositories.Repo {
 
 	rep := storages.MemStorage{}
-	rep.Init()
+	rep.Init(mainCtx)
 	var initVars = []struct {
 		Name   string
 		Type   types.DataType
@@ -381,20 +326,26 @@ func SetupLog() {
 	log.SetOutput(logFile)
 }
 
-func StopAgent(repo repositories.Repo) {
-	repo.Shutdown()
+func StopAgent(mainCtx context.Context, repo repositories.Repo) {
+	repo.Shutdown(mainCtx)
 	defer logFile.Close()
 }
 
-func StartAgent(rep repositories.Repo, config configs.AgentConfig) {
+func StartAgent(mainCtx context.Context, rep repositories.Repo, config configs.AgentConfig) {
 	var wg sync.WaitGroup
 
 	wg.Add(1)
-	startUpdateOsMetrics(rep, config, &wg)
+	startJob(mainCtx, &wg, config.PollInterval, func() {
+		UpdateOsMetrics(rep)
+	})
 	wg.Add(1)
-	startUpdatePsMetrics(rep, config, &wg)
+	startJob(mainCtx, &wg, config.PollInterval, func() {
+		UpdatePsMetrics(rep)
+	})
 	wg.Add(1)
-	startSendMetricsJSON(rep, config, &wg)
+	startJob(mainCtx, &wg, config.ReportInterval, func() {
+		SendMetricsJSON(rep, config)
+	})
 
 	groupStoped := make(chan struct{})
 	go func() {
@@ -407,7 +358,7 @@ func StartAgent(rep repositories.Repo, config configs.AgentConfig) {
 		{
 			return
 		}
-	case <-config.MainCtx.Done():
+	case <-mainCtx.Done():
 		{
 			return
 		}

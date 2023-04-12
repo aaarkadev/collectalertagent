@@ -1,7 +1,6 @@
 package configs
 
 import (
-	"context"
 	"flag"
 	"os"
 	"strconv"
@@ -17,7 +16,6 @@ type ServerConfig struct {
 	IsRestore     bool
 	HashKey       []byte
 	DSN           string
-	MainCtx       context.Context
 }
 
 type AgentConfig struct {
@@ -27,7 +25,6 @@ type AgentConfig struct {
 	HashKey        []byte
 	DSN            string
 	RateLimit      uint64
-	MainCtx        context.Context
 }
 
 func InitServerConfig() ServerConfig {

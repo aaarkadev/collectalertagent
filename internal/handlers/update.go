@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,8 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func HandlerUpdatesJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
-	_, err := getHandlerUpdateJSONResponse(w, r, serverData)
+func HandlerUpdatesJSON(mainCtx context.Context, w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+	_, err := getHandlerUpdateJSONResponse(mainCtx, w, r, serverData)
 	if err != nil {
 		return
 	}
@@ -23,8 +24,8 @@ func HandlerUpdatesJSON(w http.ResponseWriter, r *http.Request, serverData *serv
 	w.Write([]byte(`{}`))
 }
 
-func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
-	txtM, err := getHandlerUpdateJSONResponse(w, r, serverData)
+func HandlerUpdateJSON(mainCtx context.Context, w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+	txtM, err := getHandlerUpdateJSONResponse(mainCtx, w, r, serverData)
 	if err != nil {
 		return
 	}
@@ -32,7 +33,7 @@ func HandlerUpdateJSON(w http.ResponseWriter, r *http.Request, serverData *serve
 	w.Write([]byte(txtM))
 }
 
-func getHandlerUpdateJSONResponse(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) (string, error) {
+func getHandlerUpdateJSONResponse(mainCtx context.Context, w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) (string, error) {
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	bodyStr := strings.Trim(string(bodyBytes[:]), " /")
@@ -133,12 +134,12 @@ func getHandlerUpdateJSONResponse(w http.ResponseWriter, r *http.Request, server
 		return "", e
 	}
 
-	serverData.Repo.FlushDB()
+	serverData.Repo.FlushDB(mainCtx)
 
 	return string(txtM), nil
 }
 
-func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
+func HandlerUpdateRaw(mainCtx context.Context, w http.ResponseWriter, r *http.Request, serverData *servers.ServerHandlerData) {
 
 	httpErr := http.StatusOK
 	typeParam := chi.URLParam(r, "type")
@@ -212,7 +213,7 @@ func HandlerUpdateRaw(w http.ResponseWriter, r *http.Request, serverData *server
 		return
 	}
 
-	serverData.Repo.FlushDB()
+	serverData.Repo.FlushDB(mainCtx)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("Ok"))

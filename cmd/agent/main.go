@@ -16,18 +16,17 @@ func main() {
 	log.Println(types.NewTimeError(fmt.Errorf("START")))
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	mainCtx = context.WithValue(mainCtx, "mainCtxCancel", mainCtxCancel)
+	mainCtx = context.WithValue(mainCtx, types.MainCtxCancelFunc, mainCtxCancel)
 	defer mainCtxCancel()
 
 	config := configs.InitAgentConfig()
-	config.MainCtx = mainCtx
-	repo := agents.Init(&config)
+	repo := agents.Init(mainCtx, &config)
 
 	defer func() {
-		agents.StopAgent(repo)
+		agents.StopAgent(mainCtx, repo)
 	}()
 
-	agents.StartAgent(repo, config)
+	agents.StartAgent(mainCtx, repo, config)
 
 	log.Println(types.NewTimeError(fmt.Errorf("END")))
 }
