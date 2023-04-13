@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-
 	"fmt"
 	"io"
 	"log"
@@ -14,12 +13,17 @@ import (
 	"os/user"
 	"reflect"
 	"runtime"
-
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/aaarkadev/collectalertagent/internal/types"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/exp/constraints"
 )
 
@@ -69,7 +73,65 @@ func updateOne(m types.Metrics, statStructReflect reflect.Value) (types.Metrics,
 	return m, nil
 }
 
-func UpdatelMetrics(rep repositories.Repo) bool {
+func UpdatePsMetrics(rep repositories.Repo) bool {
+	memInfo, _ := mem.VirtualMemory()
+	cpuPercents, _ := cpu.Percent(time.Second, true)
+
+	for _, mElem := range rep.GetAll() {
+		if !isPsMetrica(mElem) {
+			continue
+		}
+
+		var err error
+		var cpuIdx int
+		if mElem.ID == "TotalMemory" {
+			err = mElem.Set(float64(memInfo.Total))
+		} else if mElem.ID == "FreeMemory" {
+			err = mElem.Set(float64(memInfo.Free))
+		} else if strings.Index(mElem.ID, "CPUutilization") == 0 {
+			cpuIdx, err = strconv.Atoi(strings.SplitN(mElem.ID, "CPUutilization", 2)[1])
+			if err != nil {
+				continue
+			}
+			if (cpuIdx-1) < 0 || cpuIdx > len(cpuPercents) {
+				continue
+			}
+			err = mElem.Set(cpuPercents[(cpuIdx - 1)])
+		} else {
+			continue
+		}
+		if err != nil {
+			log.Println(types.NewTimeError(fmt.Errorf("agent.UpdatePsMetrics(): fail: %w", err)))
+		}
+		err = rep.Set(mElem)
+		if err != nil {
+			log.Println(types.NewTimeError(fmt.Errorf("agent.UpdatePsMetrics(): fail: %w", err)))
+		}
+	}
+
+	return true
+}
+
+func startJob(mainCtx context.Context, wg *sync.WaitGroup, interval time.Duration, jobFunc func()) {
+	var delayedFunc func(isFirstCall bool)
+	delayedFunc = func(isFirstCall bool) {
+		if !isFirstCall {
+			jobFunc()
+		}
+		time.AfterFunc(interval, func() {
+			delayedFunc(false)
+		})
+	}
+
+	go func() {
+		delayedFunc(true)
+		<-mainCtx.Done()
+		wg.Done()
+		runtime.Goexit()
+	}()
+}
+
+func UpdateOsMetrics(rep repositories.Repo) bool {
 	var osStats = runtime.MemStats{}
 	runtime.ReadMemStats(&osStats)
 	reflectVal := reflect.ValueOf(&osStats)
@@ -81,20 +143,32 @@ func UpdatelMetrics(rep repositories.Repo) bool {
 	}
 
 	for _, mElem := range rep.GetAll() {
+		if isPsMetrica(mElem) {
+			continue
+		}
 		mElem, err := updateOne(mElem, reflectVal)
 		if err != nil {
-			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.UpdatelMetrics(): fail: %w", err)))
+			log.Println(types.NewTimeError(fmt.Errorf("agent.UpdatelMetrics(): fail: %w", err)))
 		}
 		err = rep.Set(mElem)
 		if err != nil {
-			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.UpdatelMetrics(): fail: %w", err)))
+			log.Println(types.NewTimeError(fmt.Errorf("agent.UpdatelMetrics(): fail: %w", err)))
 		}
 	}
 	return true
 }
 
-func InitAllMetrics(rep repositories.Repo) {
-	rep.Init()
+func isPsMetrica(m types.Metrics) bool {
+	if m.ID == "TotalMemory" || m.ID == "FreeMemory" || strings.Index(m.ID, "CPUutilization") == 0 {
+		return true
+	}
+	return false
+}
+
+func Init(mainCtx context.Context, config *configs.AgentConfig) repositories.Repo {
+
+	rep := storages.MemStorage{}
+	rep.Init(mainCtx)
 	var initVars = []struct {
 		Name   string
 		Type   types.DataType
@@ -129,6 +203,20 @@ func InitAllMetrics(rep repositories.Repo) {
 		{Name: "TotalAlloc", Type: types.GaugeType, Source: types.OsSource},
 		{Name: "PollCount", Type: types.CounterType, Source: types.IncrementSource},
 		{Name: "RandomValue", Type: types.GaugeType, Source: types.RandSource},
+
+		{Name: "TotalMemory", Type: types.GaugeType, Source: types.OsSource},
+		{Name: "FreeMemory", Type: types.GaugeType, Source: types.OsSource},
+	}
+
+	logicalCnt, _ := cpu.Counts(true)
+
+	for i := 1; i <= logicalCnt; i++ {
+		cpuElem := struct {
+			Name   string
+			Type   types.DataType
+			Source types.DataSource
+		}{Name: ("CPUutilization" + strconv.Itoa(i)), Type: types.GaugeType, Source: types.OsSource}
+		initVars = append(initVars, cpuElem)
 	}
 
 	for _, v := range initVars {
@@ -141,7 +229,7 @@ func InitAllMetrics(rep repositories.Repo) {
 			log.Fatalln(types.NewTimeError(fmt.Errorf("agent.InitAllMetrics(): fail2: %w", err)))
 		}
 	}
-
+	return &rep
 }
 
 func SendMetricsJSON(rep repositories.Repo, config configs.AgentConfig) {
@@ -238,32 +326,41 @@ func SetupLog() {
 	log.SetOutput(logFile)
 }
 
-func StopAgent(repo repositories.Repo) {
-	repo.Shutdown()
+func StopAgent(mainCtx context.Context, repo repositories.Repo) {
+	repo.Shutdown(mainCtx)
 	defer logFile.Close()
 }
 
-func StartAgent(rep repositories.Repo, config configs.AgentConfig) {
-	pollTicker := time.NewTicker(config.PollInterval)
-	defer pollTicker.Stop()
-	reportTicker := time.NewTicker(config.ReportInterval)
-	defer reportTicker.Stop()
+func StartAgent(mainCtx context.Context, rep repositories.Repo, config configs.AgentConfig) {
+	var wg sync.WaitGroup
 
-	for {
-		select {
-		case <-pollTicker.C:
-			{
-				go func() {
-					UpdatelMetrics(rep)
-				}()
-			}
-		case <-reportTicker.C:
-			{
-				go func() {
-					SendMetricsJSON(rep, config)
-				}()
-			}
+	wg.Add(1)
+	startJob(mainCtx, &wg, config.PollInterval, func() {
+		UpdateOsMetrics(rep)
+	})
+	wg.Add(1)
+	startJob(mainCtx, &wg, config.PollInterval, func() {
+		UpdatePsMetrics(rep)
+	})
+	wg.Add(1)
+	startJob(mainCtx, &wg, config.ReportInterval, func() {
+		SendMetricsJSON(rep, config)
+	})
+
+	groupStoped := make(chan struct{})
+	go func() {
+		wg.Wait()
+		groupStoped <- struct{}{}
+	}()
+
+	select {
+	case <-groupStoped:
+		{
+			return
+		}
+	case <-mainCtx.Done():
+		{
+			return
 		}
 	}
-
 }

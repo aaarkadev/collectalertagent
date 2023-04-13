@@ -34,9 +34,9 @@ CREATE TABLE IF NOT EXISTS "metrics" (
 );
 CREATE INDEX IF NOT EXISTS "metrics_MType" ON  "metrics" USING btree ("MType");`
 
-func (repo *DBStorage) Init() bool {
+func (repo *DBStorage) Init(mainCtx context.Context) bool {
 	repo.mem = MemStorage{}
-	repo.mem.Init()
+	repo.mem.Init(mainCtx)
 
 	if repo.Config == nil {
 		log.Println(types.NewTimeError(fmt.Errorf("DBStorage.Init(): empty Config. falback to file")))
@@ -61,7 +61,7 @@ func (repo *DBStorage) Init() bool {
 	}
 	repo.DBConn = sqlx.NewDb(conn, "pgx")
 
-	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
+	ctx, cancel := context.WithTimeout(mainCtx, configs.GlobalDefaultTimeout)
 	defer cancel()
 	if !repo.Config.IsRestore {
 		repo.DBConn.ExecContext(ctx, `DROP TABLE IF EXISTS "metrics";`)
@@ -79,7 +79,7 @@ func (repo *DBStorage) Init() bool {
 		return false
 
 	}
-	repo.loadDB()
+	repo.loadDB(mainCtx)
 
 	go func() {
 		if repo.Config.StoreInterval == 0 {
@@ -88,14 +88,14 @@ func (repo *DBStorage) Init() bool {
 		storeTicker := time.NewTicker(repo.Config.StoreInterval)
 		defer storeTicker.Stop()
 		for range storeTicker.C {
-			repo.StoreDBfunc()
+			repo.StoreDBfunc(mainCtx)
 		}
 	}()
 
 	return true
 }
 
-func (repo *DBStorage) loadDB() {
+func (repo *DBStorage) loadDB(mainCtx context.Context) {
 	if !repo.Config.IsRestore {
 		return
 	}
@@ -103,7 +103,7 @@ func (repo *DBStorage) loadDB() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
+	ctx, cancel := context.WithTimeout(mainCtx, configs.GlobalDefaultTimeout)
 	defer cancel()
 
 	oldMetrics := []types.Metrics{}
@@ -123,8 +123,8 @@ func (repo *DBStorage) loadDB() {
 	}
 }
 
-func (repo *DBStorage) Shutdown() {
-	repo.StoreDBfunc()
+func (repo *DBStorage) Shutdown(mainCtx context.Context) {
+	repo.StoreDBfunc(mainCtx)
 	if len(repo.Config.DSN) > 0 {
 		defer repo.DBConn.Close()
 	}
@@ -142,12 +142,12 @@ func (repo *DBStorage) Set(mset types.Metrics) error {
 	return repo.mem.Set(mset)
 }
 
-func (repo *DBStorage) StoreDBfunc() {
+func (repo *DBStorage) StoreDBfunc(mainCtx context.Context) {
 	if len(repo.Config.DSN) <= 0 {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(repo.Config.MainCtx, configs.GlobalDefaultTimeout)
+	ctx, cancel := context.WithTimeout(mainCtx, configs.GlobalDefaultTimeout)
 	defer cancel()
 
 	var err error
@@ -180,15 +180,15 @@ func (repo *DBStorage) StoreDBfunc() {
 	}
 }
 
-func (repo *DBStorage) FlushDB() {
-	repo.StoreDBfunc()
+func (repo *DBStorage) FlushDB(mainCtx context.Context) {
+	repo.StoreDBfunc(mainCtx)
 }
 
-func (repo *DBStorage) Ping() error {
+func (repo *DBStorage) Ping(mainCtx context.Context) error {
 	if len(repo.Config.DSN) <= 0 {
 		err := types.NewTimeError(fmt.Errorf("DBStorage.Ping(): DSN empty or no connection to DB"))
 		log.Println(err)
 		return err
 	}
-	return repo.DBConn.PingContext(repo.Config.MainCtx)
+	return repo.DBConn.PingContext(mainCtx)
 }

@@ -1,7 +1,9 @@
 package storages
 
 import (
+	"context"
 	"fmt"
+	"sync"
 
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
 	"github.com/aaarkadev/collectalertagent/internal/types"
@@ -9,16 +11,20 @@ import (
 
 type MemStorage struct {
 	metrics []types.Metrics
+	mu      sync.RWMutex
 }
 
 var _ repositories.Repo = (*MemStorage)(nil)
 
-func (repo *MemStorage) Init() bool {
+func (repo *MemStorage) Init(mainCtx context.Context) bool {
 	repo.metrics = make([]types.Metrics, 0)
 	return true
 }
 
 func (repo *MemStorage) GetAll() []types.Metrics {
+	repo.mu.RLock()
+	defer repo.mu.RUnlock()
+
 	copyValsMetrics := []types.Metrics{}
 	for _, m := range repo.metrics {
 		copyValsMetrics = append(copyValsMetrics, m.GetMetric())
@@ -65,17 +71,20 @@ func (repo *MemStorage) Set(mset types.Metrics) error {
 			}
 		}
 	}
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	repo.metrics = allMetrics
 	return err
 }
 
-func (repo *MemStorage) FlushDB() {
+func (repo *MemStorage) FlushDB(mainCtx context.Context) {
 }
 
-func (repo *MemStorage) Shutdown() {
+func (repo *MemStorage) Shutdown(mainCtx context.Context) {
 
 }
 
-func (repo *MemStorage) Ping() error {
+func (repo *MemStorage) Ping(mainCtx context.Context) error {
 	return nil
 }

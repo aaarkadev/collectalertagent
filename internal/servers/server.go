@@ -16,6 +16,7 @@ import (
 
 	"github.com/aaarkadev/collectalertagent/internal/configs"
 	"github.com/aaarkadev/collectalertagent/internal/repositories"
+	"github.com/aaarkadev/collectalertagent/internal/storages"
 	"github.com/aaarkadev/collectalertagent/internal/types"
 )
 
@@ -128,9 +129,29 @@ func SetupLog() {
 	log.SetOutput(logFile)
 }
 
-func StopServer(repo repositories.Repo) {
-	repo.Shutdown()
+func StopServer(mainCtx context.Context, repo repositories.Repo) {
+	repo.Shutdown(mainCtx)
 	defer logFile.Close()
+}
+
+func Init(mainCtx context.Context, config *configs.ServerConfig) (repositories.Repo, ServerHandlerData) {
+	var repo repositories.Repo
+	repo = &storages.DBStorage{Config: config}
+	isInitSuccess := repo.Init(mainCtx)
+	if !isInitSuccess {
+		log.Println(types.NewTimeError(fmt.Errorf("init DB repo failed. falback to file")))
+		repo = &storages.FileStorage{Config: config}
+		isInitSuccess = repo.Init(mainCtx)
+		if !isInitSuccess {
+			log.Println(types.NewTimeError(fmt.Errorf("init File repo failed. falback to mem")))
+		}
+	}
+
+	serverData := ServerHandlerData{}
+	serverData.Repo = repo
+	serverData.Config = *config
+
+	return repo, serverData
 }
 
 func StartServer(mainCtx context.Context, config configs.ServerConfig, router http.Handler) *http.Server {
@@ -162,8 +183,8 @@ func StartServer(mainCtx context.Context, config configs.ServerConfig, router ht
 	return server
 }
 
-func BindServerToHandler(s *ServerHandlerData, f func(http.ResponseWriter, *http.Request, *ServerHandlerData)) http.HandlerFunc {
+func BindServerDataToHandler(mainCtx context.Context, s *ServerHandlerData, f func(context.Context, http.ResponseWriter, *http.Request, *ServerHandlerData)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		f(w, r, s)
+		f(mainCtx, w, r, s)
 	}
 }

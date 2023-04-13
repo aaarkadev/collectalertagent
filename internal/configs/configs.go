@@ -1,9 +1,9 @@
 package configs
 
 import (
-	"context"
 	"flag"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -16,7 +16,6 @@ type ServerConfig struct {
 	IsRestore     bool
 	HashKey       []byte
 	DSN           string
-	MainCtx       context.Context
 }
 
 type AgentConfig struct {
@@ -25,6 +24,7 @@ type AgentConfig struct {
 	PollInterval   time.Duration
 	HashKey        []byte
 	DSN            string
+	RateLimit      uint64
 }
 
 func InitServerConfig() ServerConfig {
@@ -109,6 +109,9 @@ func InitAgentConfig() AgentConfig {
 	defaultDSN := ""
 	flag.StringVar(&config.DSN, "d", defaultDSN, "db DSN string")
 
+	defaultRateLimit := uint64(1)
+	flag.Uint64Var(&config.RateLimit, "l", defaultRateLimit, "send rate limit")
+
 	flag.Parse()
 
 	config.HashKey = []byte(HashKeyStr)
@@ -142,6 +145,15 @@ func InitAgentConfig() AgentConfig {
 	envVal, envFound = os.LookupEnv("DATABASE_DSN")
 	if envFound {
 		config.DSN = envVal
+	}
+
+	envVal, envFound = os.LookupEnv("RATE_LIMIT")
+	if envFound {
+		rateParsed, err := strconv.Atoi(envVal)
+		if err == nil && rateParsed > 0 {
+			config.RateLimit = uint64(rateParsed)
+		}
+
 	}
 
 	return config
